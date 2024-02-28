@@ -64,6 +64,7 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
                 format.isJava() -> lines.append("ValidatableResponse $resVarName = ")
                 format.isJavaScript() -> lines.append("const $resVarName = ")
                 format.isCsharp() -> lines.append("var $resVarName = ")
+                format.isGo() -> lines.append("$resVarName := ")
             }
         }
 

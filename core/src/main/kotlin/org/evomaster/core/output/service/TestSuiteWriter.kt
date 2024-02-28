@@ -97,9 +97,9 @@ class TestSuiteWriter {
 
         header(solution, testSuiteFileName, lines, timestamp, controllerName)
 
-        if (!config.outputFormat.isJavaScript()) {
+        if (!config.outputFormat.isJavaScript() && !config.outputFormat.isGo()) {
             /*
-                In Java/Kotlin/C# the tests are inside a class, but not in JS
+                In Java/Kotlin/C# the tests are inside a class, but not in JS or Go
              */
             lines.indent()
         }
@@ -147,7 +147,7 @@ class TestSuiteWriter {
             lines.add(testLines)
         }
 
-        if (!config.outputFormat.isJavaScript()) {
+        if (!config.outputFormat.isJavaScript() && !config.outputFormat.isGo()) {
             lines.deindent()
         }
 
@@ -423,6 +423,15 @@ class TestSuiteWriter {
             }
         }
 
+        if (format.isGo()) {
+            lines.add("package ${config.outputFolder.substring(config.outputFolder.lastIndexOf("/")+1)}")
+            lines.addEmpty(1)
+            lines.add("import (")
+            addImport("github.com/stretchr/testify/suite", lines)
+            addImport("github.com/stretchr/testify/require", lines)
+            lines.add(")")
+        }
+
         if (format.isCsharp()) {
             addUsing("System", lines)
             addUsing("System.Text", lines)
@@ -449,8 +458,8 @@ class TestSuiteWriter {
             defineFixture(lines, controllerName)
         }
 
-        if (format.isJavaOrKotlin() || format.isCsharp()) {
-            defineClass(name, lines)
+        if (format.isJavaOrKotlin() || format.isCsharp() || format.isGo()) {
+            defineClass(name, lines, controllerName)
             lines.addEmpty()
         }
     }
@@ -784,7 +793,7 @@ class TestSuiteWriter {
             }
             format.isJavaScript() -> lines.add("beforeEach(async () => ")
             //for C# we are actually setting up the constructor for the test class
-            format.isCsharp() -> lines.add("public ${name.getClassName()} ($fixtureClass fixture)")
+            format.isCsharp() -> lines.add("public ${name.getClassName(config.outputFormat)} ($fixtureClass fixture)")
         }
 
 
@@ -885,7 +894,8 @@ class TestSuiteWriter {
         }
     }
 
-    private fun defineClass(name: TestSuiteFileName, lines: Lines) {
+    //Go struct is defined as a class to simplify code
+    private fun defineClass(name: TestSuiteFileName, lines: Lines, controllerName: String?) {
 
         lines.addEmpty()
 
@@ -895,15 +905,41 @@ class TestSuiteWriter {
             format.isJava() -> lines.append("public ")
             format.isKotlin() -> lines.append("internal ")
             format.isCsharp() -> lines.append("public ")
+            format.isGo() -> lines.append("type ")
         }
 
-        if (!format.isCsharp())
-            lines.append("class ${name.getClassName()} {")
+        if (format.isCsharp())
+            lines.append("class ${name.getClassName(config.outputFormat)} : IClassFixture<$fixtureClass> {")
+        else if (format.isGo()) {
+            lines.append("${name.getClassName(config.outputFormat)} struct")
+            lines.block {
+                lines.add("suite.Suite")
+                if (!config.blackBox || config.bbExperiments) {
+                    lines.add("Controller ${controllerName}")
+                }
+                lines.add("BaseUrlOfSut string")
+            }
+            lines.addEmpty()
+
+            val suiteName = "Test" + name.getClassName(config.outputFormat).replace("Test","") + "Suite"
+            lines.add("func ${suiteName}(t *testing.T)")
+            lines.block {
+                lines.add("suite.Run(t, new(${name.getClassName(config.outputFormat)}))")
+            }
+        }
         else
-            lines.append("class ${name.getClassName()} : IClassFixture<$fixtureClass> {")
+            lines.append("class ${name.getClassName(config.outputFormat)} {")
     }
 
     private fun addImport(klass: String, lines: Lines, static: Boolean = false) {
+
+        //Go
+        if (config.outputFormat.isGo()) {
+            lines.indented {
+                lines.add("\"$klass\"")
+            }
+            return
+        }
 
         //Kotlin for example does not use "static" in the imports
         val s = if (static && config.outputFormat.isJava()) "static" else ""

@@ -20,8 +20,12 @@ class TestSuiteFileName(
     fun hasPackage() = ! getPackage().isBlank()
 
 
-    fun getClassName(): String{
+    fun getClassName(format: OutputFormat): String{
         if(! hasPackage()){
+            when {
+                format.isGo() -> return name.split('_').joinToString("", transform = { it.replaceFirstChar { it.uppercase() }} )
+            }
+
             return name
         }
 
@@ -32,13 +36,17 @@ class TestSuiteFileName(
     fun getAsPath(format: OutputFormat) : String{
 
         //TODO what about C#? is it a behavior we want there as well
-        val base = if(format.isJavaOrKotlin()) name.replace('.', '/') else name
+        var base = if(format.isJavaOrKotlin()) name.replace('.', '/') else name
+        when {
+            format.isGo() -> base = base.lowercase()
+        }
 
         return base + when{
             format.isJava() -> ".java"
             format.isKotlin() -> ".kt"
             format.isJavaScript() -> ".js"
             format.isCsharp() -> ".cs"
+            format.isGo() -> ".go"
             else -> throw IllegalStateException("Unsupported format $format")
         }
     }
