@@ -60,7 +60,8 @@ abstract class TestCaseWriter {
     fun convertToCompilableTestCode(
             test: TestCase,
             baseUrlOfSut: String,
-            testSuitePath: Path? = null
+            testSuitePath: Path? = null,
+            className: String? = null //TODO: Optional only for tests. Shouldn't be nullable
     ): Lines {
 
         counter = 0
@@ -95,6 +96,7 @@ abstract class TestCaseWriter {
             format.isKotlin() -> lines.add("fun ${test.name}()  {")
             format.isJavaScript() -> lines.add("test(\"${test.name}\", async () => {")
             format.isCsharp() -> lines.add("public async Task ${test.name}() {")
+            format.isGo() -> lines.add("func (suite *${className}) ${test.name}() {")
         }
 
         lines.indented {

@@ -113,9 +113,15 @@ class TestSuiteWriter {
             // TODO skip to sort RPC for the moment
             if (solution.individuals.any { it.individual is RPCIndividual }) {
                 var counter = 0
-                solution.individuals.map { ind -> TestCase(ind, "test_${counter++}") }
-            } else
-                testSuiteOrganizer.sortTests(solution, config.customNaming)
+                val testName = when {
+                    config.outputFormat.isGo() -> "Test_${counter++}"
+                    else -> "test_${counter++}"
+                }
+                solution.individuals.map { ind -> TestCase(ind, testName) }
+            } else {
+                val lowerCase = !config.outputFormat.isGo()
+                testSuiteOrganizer.sortTests(solution, config.customNaming, lowerCase)
+            }
         } catch (ex: Exception) {
             var counter = 0
             log.warn(
@@ -123,19 +129,24 @@ class TestSuiteWriter {
                         + "Exception: ${ex.localizedMessage} \n"
                         + "At ${ex.stackTrace.joinToString(separator = " \n -> ")}. "
             )
-            solution.individuals.map { ind -> TestCase(ind, "test_${counter++}") }
+            val testName = when {
+                config.outputFormat.isGo() -> "Test_${counter++}"
+                else -> "test_${counter++}"
+            }
+            solution.individuals.map { ind -> TestCase(ind, testName) }
         }
 
         val testSuitePath = getTestSuitePath(testSuiteFileName, config)
+        val className = testSuiteFileName.getClassName(config.outputFormat)
         for (test in tests) {
             lines.addEmpty(2)
 
             // catch writing problems on an individual test case basis
             val testLines = try {
                 if (config.outputFormat.isCsharp())
-                    testCaseWriter.convertToCompilableTestCode(test, "$fixture.$baseUrlOfSut", testSuitePath)
+                    testCaseWriter.convertToCompilableTestCode(test, "$fixture.$baseUrlOfSut", testSuitePath, className)
                 else
-                    testCaseWriter.convertToCompilableTestCode(test, baseUrlOfSut, testSuitePath)
+                    testCaseWriter.convertToCompilableTestCode(test, baseUrlOfSut, testSuitePath, className)
             } catch (ex: Exception) {
                 log.warn(
                     "A failure has occurred in writing test ${test.name}. \n "
@@ -428,7 +439,9 @@ class TestSuiteWriter {
             lines.addEmpty(1)
             lines.add("import (")
             addImport("github.com/stretchr/testify/suite", lines)
-            addImport("github.com/stretchr/testify/require", lines)
+            addImport("net/http", lines)
+            addImport("testing", lines)
+            addImport("time", lines)
             lines.add(")")
         }
 
@@ -589,7 +602,7 @@ class TestSuiteWriter {
         // for generated code should be false.
     }
 
-    private fun initClassMethod(solution: Solution<*>, lines: Lines) {
+    private fun initClassMethod(solution: Solution<*>, lines: Lines, testSuiteFileName: TestSuiteFileName, controllerName: String?,) {
 
         // Note: for C#, this is done in the Fixture class
 
@@ -606,6 +619,7 @@ class TestSuiteWriter {
                 lines.add("fun initClass()")
             }
             format.isJavaScript() -> lines.add("beforeAll( async () =>")
+            format.isGo() -> lines.add("func (suite *${testSuiteFileName.getClassName(config.outputFormat)}) SetupSuite()")
         }
 
         lines.block {
@@ -632,6 +646,11 @@ class TestSuiteWriter {
                         if (config.problemType == EMConfig.ProblemType.RPC) {
                             addStatement("$controller.extractRPCSchema()", lines)
                         }
+                    }
+                    config.outputFormat.isGo() -> {
+                        val controllerInitialization = controllerName?.replace("*","&") + "{}"
+                        lines.add("suite.Controller = ${controllerInitialization}")
+                        lines.add("suite.BaseUrlOfSut = suite.Controller.StartSut()")
                     }
                 }
 
@@ -722,7 +741,7 @@ class TestSuiteWriter {
         }
     }
 
-    private fun tearDownMethod(lines: Lines, solution: Solution<*>) {
+    private fun tearDownMethod(lines: Lines, solution: Solution<*>, testSuiteFileName: TestSuiteFileName) {
 
         if (config.blackBox) {
             return
@@ -741,6 +760,7 @@ class TestSuiteWriter {
                 lines.add("fun tearDown()")
             }
             format.isJavaScript() -> lines.add("afterAll( async () =>")
+            format.isGo() -> lines.add("func (suite *${testSuiteFileName.getClassName(config.outputFormat)}) TearDownSuite()")
         }
 
         if (!format.isCsharp()) {
@@ -748,6 +768,14 @@ class TestSuiteWriter {
                 when {
                     format.isJavaScript() -> {
                         addStatement("await $controller.stopSut()", lines)
+                    }
+                    format.isGo() -> {
+                        lines.add("suite.Controller.StopSut()")
+                        lines.addEmpty()
+                        lines.add("for suite.Controller.IsSutRunning()")
+                        lines.block {
+                            lines.add("time.Sleep(100 * time.Millisecond)")
+                        }
                     }
                     else -> {
                         addStatement("$controller.stopSut()", lines)
@@ -794,6 +822,7 @@ class TestSuiteWriter {
             format.isJavaScript() -> lines.add("beforeEach(async () => ")
             //for C# we are actually setting up the constructor for the test class
             format.isCsharp() -> lines.add("public ${name.getClassName(config.outputFormat)} ($fixtureClass fixture)")
+            format.isGo() -> lines.add("func (suite *${name.getClassName(config.outputFormat)}) SetupTest()")
         }
 
 
@@ -828,6 +857,8 @@ class TestSuiteWriter {
                 addStatement("$fixture = fixture", lines)
                 //TODO add resetDatabase
                 addStatement("$fixture.controller.ResetStateOfSut()", lines)
+            } else if (format.isGo()) {
+                lines.add("suite.Controller.ResetStateOfSUT()")
             }
 
             if (format.isJavaOrKotlin()
@@ -858,11 +889,13 @@ class TestSuiteWriter {
             staticVariables(controllerName, controllerInput, lines, solution)
 
             if (!format.isCsharp()) {
-                lines.addEmpty(2)
-                initClassMethod(solution, lines)
+                if (!format.isGo()) {
+                    lines.addEmpty(2)
+                }
+                initClassMethod(solution, lines, testSuiteFileName, controllerName)
                 lines.addEmpty(2)
 
-                tearDownMethod(lines, solution)
+                tearDownMethod(lines, solution, testSuiteFileName)
             }
         }
 

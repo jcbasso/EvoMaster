@@ -181,6 +181,8 @@ class RestTestCaseWriter : HttpWsTestCaseWriter {
             if (verb == "trace" && format.isJavaOrKotlin()) {
                 //currently, RestAssured does not have a trace() method
                 lines.add(".request(io.restassured.http.Method.TRACE, ")
+            } else if (format.isGo()) {
+                lines.add("method := http.Method${capitalizeFirstChar(verb)}")
             } else {
                 lines.add(".$verb(")
             }
@@ -202,6 +204,8 @@ class RestTestCaseWriter : HttpWsTestCaseWriter {
 
             if (format.isKotlin()) {
                 lines.append("\"\${$baseUrlOfSut}")
+            } else if (format.isGo()) {
+                lines.add("reqUrl := \"http://\" + suite.BaseUrlOfSut + \"")
             } else {
                 lines.append("$baseUrlOfSut + \"")
             }
@@ -247,7 +251,7 @@ class RestTestCaseWriter : HttpWsTestCaseWriter {
                 handleBody(call, lines)
             }
             lines.append(");")
-        } else {
+        } else if (!format.isGo()) {
             lines.append(")")
         }
     }
@@ -320,6 +324,11 @@ class RestTestCaseWriter : HttpWsTestCaseWriter {
                     }
                     format.isCsharp() -> {
                         lines.add("Assert.True(Uri.IsWellFormedUriString($location, UriKind.Absolute) || string.IsNullOrEmpty($location));")
+                    }
+                    format.isGo() -> {
+                        lines.add("$location := $resVarName.Header.Get(\"location\")")
+                        lines.add("_, err = url.ParseRequestURI($location)")
+                        lines.add("suite.NoError(err, \"$location: Wrong location\")")
                     }
                 }
             } else {

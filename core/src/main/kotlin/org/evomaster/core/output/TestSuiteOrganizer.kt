@@ -28,10 +28,10 @@ class TestSuiteOrganizer {
 
     private val defaultSorting = listOf(0, 1)
 
-    fun sortTests(solution: Solution<*>, customNaming: Boolean = false): List<TestCase> {
+    fun sortTests(solution: Solution<*>, customNaming: Boolean = false, lowerCase: Boolean = true): List<TestCase> {
         //sortingHelper.selectCriteriaByIndex(defaultSorting)
         //TODO here in the future we will have something a bit smarter
-        return sortingHelper.sort(solution, namingHelper, customNaming)
+        return sortingHelper.sort(solution, namingHelper, customNaming, lowerCase)
     }
 
     fun setPartialOracles(partialOracles: PartialOracles){
@@ -229,7 +229,8 @@ class SortingHelper {
      */
     private fun sortByComparatorList (solution: Solution<*>,
                               namingHelper: NamingHelper,
-                              comparators: List<Comparator<EvaluatedIndividual<*>>> = listOf(statusCode)
+                              comparators: List<Comparator<EvaluatedIndividual<*>>> = listOf(statusCode),
+                              lowerCase: Boolean = true
 
     ): List<TestCase> {
         var counter = 0
@@ -259,7 +260,8 @@ class SortingHelper {
         }
 
         //return solution.individuals.map{ ind -> TestCase(ind, "test_"  + (counter++) + namingHelper.suggestName(ind))}
-        return inds.map{ ind -> TestCase(ind, "test_"  + (counter++) + namingHelper.suggestName(ind))}
+        val testName = if (lowerCase) "test_" else "Test_"
+        return inds.map{ ind -> TestCase(ind, testName  + (counter++) + namingHelper.suggestName(ind))}
 
     }
 
@@ -271,9 +273,9 @@ class SortingHelper {
         return solution.individuals.map { ind -> TestCase(ind, "test" + (counter++)) }
     }
 
-    fun sort(solution: Solution<*>, namingHelper: NamingHelper = NamingHelper(), customNaming: Boolean = false): List<TestCase> {
+    fun sort(solution: Solution<*>, namingHelper: NamingHelper = NamingHelper(), customNaming: Boolean = false, lowerCase: Boolean = true): List<TestCase> {
         val newSort = if (customNaming){
-            sortByComparatorList(solution, namingHelper, comparatorList)
+            sortByComparatorList(solution, namingHelper, comparatorList, lowerCase)
         }
         else naiveSorting(solution)
 

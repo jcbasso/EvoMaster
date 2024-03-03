@@ -64,7 +64,6 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
                 format.isJava() -> lines.append("ValidatableResponse $resVarName = ")
                 format.isJavaScript() -> lines.append("const $resVarName = ")
                 format.isCsharp() -> lines.append("var $resVarName = ")
-                format.isGo() -> lines.append("$resVarName := ")
             }
         }
 
@@ -74,7 +73,7 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
             format.isCsharp() -> lines.append("await Client")
         }
 
-        if (!format.isJavaScript() && !format.isCsharp()) {
+        if (!format.isJavaScript() && !format.isCsharp() && !format.isGo()) {
             // in JS, the Accept must be after the verb
             // in C#, must be before the call
             lines.append(getAcceptHeader(call, res))
@@ -96,6 +95,7 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
             format.isJavaOrKotlin() -> ".accept("
             format.isJavaScript() -> ".set('Accept', "
             format.isCsharp() -> "Client.DefaultRequestHeaders.Add(\"Accept\", "
+            format.isGo() -> "req.Header.Set(\"Accept\", "
             else -> throw IllegalArgumentException("Invalid format: $format")
         }
     }
@@ -130,12 +130,18 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
         val set = when {
             format.isJavaOrKotlin() -> "header"
             format.isJavaScript() -> "set"
+            format.isGo() -> "Set"
             //TODO C#
             else -> throw IllegalArgumentException("Not supported format: $format")
         }
 
+        val prefix = when {
+            format.isGo() -> "req.Header."
+            else -> "."
+        }
+
         call.auth.headers.forEach {
-            lines.add(".$set(\"${it.name}\", \"${it.value}\") // ${call.auth.name}")
+            lines.add("$prefix$set(\"${it.name}\", \"${it.value}\") // ${call.auth.name}")
         }
 
         call.parameters.filterIsInstance<HeaderParam>()
@@ -144,7 +150,7 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
             .filter { it.isInUse() }
             .forEach {
                 val x = it.getRawValue()
-                lines.add(".$set(\"${it.name}\", \"${GeneUtils.applyEscapes(x, GeneUtils.EscapeMode.BODY, format)}\")")
+                lines.add("$prefix$set(\"${it.name}\", \"${GeneUtils.applyEscapes(x, GeneUtils.EscapeMode.BODY, format)}\")")
             }
 
         val cookieLogin = call.auth.cookieLogin
@@ -152,6 +158,7 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
             when {
                 format.isJavaOrKotlin() -> lines.add(".cookies(${CookieWriter.cookiesName(cookieLogin)})")
                 format.isJavaScript() -> lines.add(".set('Cookies', ${CookieWriter.cookiesName(cookieLogin)})")
+                format.isGo() -> lines.add("req.Header.Set(\"Cookies\", ${CookieWriter.cookiesName(cookieLogin)})")
                 //TODO C#
             }
         }
@@ -159,7 +166,7 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
         //TODO make sure header was not already set
         val tokenLogin = call.auth.jsonTokenPostLogin
         if (tokenLogin != null) {
-            lines.add(".$set(\"Authorization\", ${TokenWriter.tokenName(tokenLogin)}) // ${call.auth.name}")
+            lines.add("$prefix$set(\"Authorization\", ${TokenWriter.tokenName(tokenLogin)}) // ${call.auth.name}")
         }
     }
 
@@ -189,6 +196,10 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
 
             format.isCsharp() -> {
                 lines.add("Assert.Equal($code, (int) $responseVariableName.StatusCode);")
+            }
+
+            format.isGo() -> {
+                lines.add("suite.Equal($code, $responseVariableName.StatusCode)")
             }
 
             else -> {
@@ -301,6 +312,14 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
                 handleVerbEndpoint(baseUrlOfSut, call, lines)
                 //TODO headers
             }
+
+            format.isGo() -> {
+                handleVerbEndpoint(baseUrlOfSut, call, lines)
+                lines.addEmpty()
+                handleBody(call, lines)
+                lines.addEmpty()
+                handleHeaders(call, lines)
+            }
         }
 
         if (format.isJavaOrKotlin()) {
@@ -328,17 +347,20 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
         val bodyParam = call.parameters.find { p -> p is BodyParam } as BodyParam?
 
 
-        if (format.isCsharp() && bodyParam == null) {
-            lines.append("null")
-            return
-        }
-
-        if (bodyParam != null) {
+        if (bodyParam == null) {
+            if (format.isCsharp()) {
+                lines.append("null")
+                return
+            } else if (format.isGo()) {
+                lines.add("req, err := http.NewRequest(method, reqUrl, nil)")
+            }
+        } else { // TODO Add Go with Body
 
             val send = sendBodyCommand()
 
             when {
                 format.isJavaOrKotlin() -> lines.add(".contentType(\"${bodyParam.contentType()}\")")
+                format.isJavaScript() -> lines.add(".set('Content-Type','${bodyParam.contentType()}')")
                 format.isJavaScript() -> lines.add(".set('Content-Type','${bodyParam.contentType()}')")
                 //FIXME
                 //format.isCsharp() -> lines.add("Client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(\"${bodyParam.contentType()}\"));")
@@ -387,6 +409,10 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
                 //TODO XML
                 LoggingUtil.uniqueWarn(log, "Unhandled type for body payload: " + bodyParam.contentType())
             }
+        }
+
+        if (format.isGo()) {
+            lines.add("suite.Nil(err, \"Request creation error must be nil\")")
         }
     }
 
@@ -502,7 +528,7 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
                 format.isJavaOrKotlin() -> ".contentType(\"$bodyTypeSimplified\")"
                 format.isJavaScript() ->
                     "expect($responseVariableName.header[\"content-type\"].startsWith(\"$bodyTypeSimplified\")).toBe(true);"
-
+                format.isGo() -> "suite.True(strings.HasPrefix($responseVariableName.Header.Get(\"Content-Type\"), \"$bodyTypeSimplified\"))"
                 format.isCsharp() -> "Assert.Contains(\"$bodyTypeSimplified\", $responseVariableName.Content.Headers.GetValues(\"Content-Type\").First());"
                 else -> throw IllegalStateException("Unsupported format $format")
             }
@@ -519,6 +545,10 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
             //cannot use response object directly, as need to unmarshall the body payload manually
             bodyVarName = createUniqueBodyVariableName()
             lines.add("dynamic $bodyVarName = ")
+        } else if (format.isGo()) {
+            bodyVarName = createUniqueBodyVariableName()
+            lines.add("$bodyVarName, err := io.ReadAll($responseVariableName.Body)")
+            lines.add("suite.NoError(err, \"Request body read must be nil\")")
         }
 
         if (type.isCompatible(MediaType.APPLICATION_JSON_TYPE) || type.toString().toLowerCase().contains("+json")) {
@@ -556,6 +586,12 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
             lines.add(".ok(res => res.status)")
         }
 
+        if (format.isGo()) {
+            lines.add("$resVarName, err := http.DefaultClient.Do(req)")
+            lines.add("suite.NoError(err, \"Request error must be nil\")")
+            lines.add("defer $resVarName.Body.Close()")
+        }
+
 
         if (lines.shouldUseSemicolon(format)) {
             /*
@@ -582,7 +618,7 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
         }
 
         //TODO what was the reason for this?
-        if (!format.isCsharp()) {
+        if (!format.isCsharp() && !format.isGo()) {
             lines.deindent(2)
         }
     }

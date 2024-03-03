@@ -26,7 +26,12 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
         return name
     }
 
-    override fun handleFieldDeclarations(lines: Lines, baseUrlOfSut: String, ind: EvaluatedIndividual<*>, insertionVars: MutableList<Pair<String, String>>) {
+    override fun handleFieldDeclarations(
+        lines: Lines,
+        baseUrlOfSut: String,
+        ind: EvaluatedIndividual<*>,
+        insertionVars: MutableList<Pair<String, String>>
+    ) {
 
         //FIXME this is getting auth, not field declaration
         CookieWriter.handleGettingCookies(format, ind, lines, baseUrlOfSut, this)
@@ -47,20 +52,25 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
 
         if (initializingSqlActions.isNotEmpty()) {
             SqlWriter.handleDbInitialization(
-                    format,
+                format,
                 initializingSqlActions.indices.map {
-                        EvaluatedDbAction(initializingSqlActions[it], initializingSqlActionResults[it] as SqlActionResult)
-                    },
-                    lines, insertionVars = insertionVars, skipFailure = config.skipFailureSQLInTestFile)
+                    EvaluatedDbAction(initializingSqlActions[it], initializingSqlActionResults[it] as SqlActionResult)
+                },
+                lines, insertionVars = insertionVars, skipFailure = config.skipFailureSQLInTestFile
+            )
         }
 
         if (initializingMongoActions.isNotEmpty()) {
             MongoWriter.handleMongoDbInitialization(
                 format,
                 initializingMongoActions.indices.map {
-                    EvaluatedMongoDbAction(initializingMongoActions[it], initializingMongoResults[it] as MongoDbActionResult)
+                    EvaluatedMongoDbAction(
+                        initializingMongoActions[it],
+                        initializingMongoResults[it] as MongoDbActionResult
+                    )
                 },
-                lines, insertionVars = insertionVars, skipFailure = config.skipFailureSQLInTestFile)
+                lines, insertionVars = insertionVars, skipFailure = config.skipFailureSQLInTestFile
+            )
         }
     }
 
@@ -73,7 +83,7 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
             lines.add(emptyBodyCheck(bodyVarName))
         } else {
             //TODO in the call above BODY was used... what's difference from TEXT?
-            lines.add(bodyIsString(bodyString, GeneUtils.EscapeMode.TEXT, bodyVarName))
+            bodyIsString(lines, bodyString, GeneUtils.EscapeMode.TEXT, bodyVarName)
         }
     }
 
@@ -84,14 +94,15 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
         when (bodyString?.trim()?.first()) {
             //TODO this should be handled recursively, and not ad-hoc here...
             '[' -> {
-                try{
-                // This would be run if the JSON contains an array of objects.
-                val list = Gson().fromJson(bodyString, List::class.java)
-                handleAssertionsOnList(list, lines, "", bodyVarName)
+                try {
+                    // This would be run if the JSON contains an array of objects.
+                    val list = Gson().fromJson(bodyString, List::class.java)
+                    handleAssertionsOnList(list, lines, "", bodyVarName)
                 } catch (e: JsonSyntaxException) {
                     lines.add("/* Failed to parse JSON response */")
                 }
             }
+
             '{' -> {
                 // JSON contains an object
                 try {
@@ -101,9 +112,11 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
                     lines.add("/* Failed to parse JSON response */")
                 }
             }
+
             '"' -> {
-                lines.add(bodyIsString(bodyString, GeneUtils.EscapeMode.BODY, bodyVarName))
+                bodyIsString(lines, bodyString, GeneUtils.EscapeMode.BODY, bodyVarName)
             }
+
             else -> {
                 /*
                     This branch will be called if the JSON is null (or has a basic type)
@@ -130,9 +143,10 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
 
         when {
             format.isJavaOrKotlin() -> {
-                lines.add(bodyIsString(s, GeneUtils.EscapeMode.BODY, responseVariableName))
+                bodyIsString(lines, s, GeneUtils.EscapeMode.BODY, responseVariableName)
             }
-            format.isJavaScript() || format.isCsharp() -> {
+
+            format.isJavaScript() || format.isCsharp() || format.isGo() -> {
                 try {
                     val number = s.toDouble()
                     handleAssertionsOnField(number, lines, fieldPath, responseVariableName)
@@ -152,7 +166,12 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
         }
     }
 
-    protected fun handleAssertionsOnObject(resContents: Map<String, *>, lines: Lines, fieldPath: String, responseVariableName: String?) {
+    protected fun handleAssertionsOnObject(
+        resContents: Map<String, *>,
+        lines: Lines,
+        fieldPath: String,
+        responseVariableName: String?
+    ) {
         if (resContents.isEmpty()) {
 
             val k = when {
@@ -161,7 +180,13 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
                     TODO also need more tests to check all these edge cases
                  */
                 format.isJavaOrKotlin() -> if (fieldPath.isEmpty()) "" else if (fieldPath.startsWith("'")) "$fieldPath." else "'$fieldPath'."
-                format.isJavaScript() -> if (fieldPath.isEmpty()) "" else "${if (fieldPath.startsWith("[") || fieldPath.startsWith(".")) "" else "."}$fieldPath"
+                format.isJavaScript() -> if (fieldPath.isEmpty()) "" else "${
+                    if (fieldPath.startsWith("[") || fieldPath.startsWith(
+                            "."
+                        )
+                    ) "" else "."
+                }$fieldPath"
+
                 format.isCsharp() -> if (fieldPath.isEmpty()) "" else "${if (fieldPath.startsWith("[")) "" else "."}$fieldPath"
                 else -> throw IllegalStateException("Format not supported yet: $format")
             }
@@ -179,45 +204,50 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
         }
 
         resContents.entries
-                .filter { !isFieldToSkip(it.key) }
-                .forEach {
+            .filter { !isFieldToSkip(it.key) }
+            .forEach {
 
-                    var needsDot = true
+                var needsDot = true
 
-                    val fieldName = if (format.isJava()) {
-                        "'${it.key}'"
-                    } else if (format.isKotlin()){
-                        "'${handleDollarSign(it.key)}'"
-                    } else if (format.isJavaScript()) {
-                        //field name could have any character... need to use [] notation then
-                        if (it.key.matches(Regex("^[a-zA-Z][a-zA-Z0-9]*$"))) {
-                            it.key
-                        } else {
-                            needsDot = false
-                            "[\"${it.key}\"]"
-                        }
-                    //TODO need to deal with '' C#? see EscapeRest
-                    } else {
+                val fieldName = if (format.isJava()) {
+                    "'${it.key}'"
+                } else if (format.isKotlin()) {
+                    "'${handleDollarSign(it.key)}'"
+                } else if (format.isGo()) {
+                    "\"${it.key}\""
+                } else if (format.isJavaScript()) {
+                    //field name could have any character... need to use [] notation then
+                    if (it.key.matches(Regex("^[a-zA-Z][a-zA-Z0-9]*$"))) {
                         it.key
-                    }
-
-
-                    val extendedPath = if (format.isJavaOrKotlin() && fieldPath.isEmpty()) {
-                        fieldName
-                    } else if (needsDot) {
-                        "${fieldPath}.${fieldName}"
                     } else {
-                        "${fieldPath}${fieldName}"
+                        needsDot = false
+                        "[\"${it.key}\"]"
                     }
-
-                    handleAssertionsOnField(it.value, lines, extendedPath, responseVariableName)
+                    //TODO need to deal with '' C#? see EscapeRest
+                } else {
+                    it.key
                 }
+
+
+                val extendedPath = if (format.isJavaOrKotlin() && fieldPath.isEmpty()) {
+                    fieldName
+                } else if (format.isGo()) {
+                    "${fieldPath}, ${fieldName}"
+                } else if (needsDot) {
+                    "${fieldPath}.${fieldName}"
+                } else {
+                    "${fieldPath}${fieldName}"
+                }
+
+                handleAssertionsOnField(it.value, lines, extendedPath, responseVariableName)
+            }
     }
+
     /*
         a quick fix on handling dollar sign in assertion
         TODO, might move to other places to systematically handle the assertions with special symbols
      */
-    private fun handleDollarSign(text: String): String{
+    private fun handleDollarSign(text: String): String {
         return text.replace("\$", "\\\$")
     }
 
@@ -228,6 +258,7 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
                 format.isJavaOrKotlin() -> ".body(\"${fieldPath}\", nullValue())"
                 format.isJavaScript() -> "expect($responseVariableName.body$fieldPath).toBe(null);"
                 format.isCsharp() -> "Assert.True($responseVariableName$fieldPath == null);"
+                format.isGo() -> "suite.Len(fastjson.GetBytes($responseVariableName, $fieldPath), 0)"
                 else -> throw IllegalStateException("Format not supported yet: $format")
             }
             lines.add(instruction)
@@ -239,6 +270,7 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
                 handleAssertionsOnObject(value as Map<String, *>, lines, fieldPath, responseVariableName)
                 return
             }
+
             is List<*> -> {
                 handleAssertionsOnList(value, lines, fieldPath, responseVariableName)
                 return
@@ -250,8 +282,15 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
                 is Boolean -> "equalTo($value)"
                 is Number -> "numberMatches($value)"
                 is String -> "containsString(" +
-                        "\"${GeneUtils.applyEscapes(value as String, mode = GeneUtils.EscapeMode.ASSERTION, format = format)}" +
+                        "\"${
+                            GeneUtils.applyEscapes(
+                                value as String,
+                                mode = GeneUtils.EscapeMode.ASSERTION,
+                                format = format
+                            )
+                        }" +
                         "\")"
+
                 else -> throw IllegalStateException("Unsupported type: ${value::class}")
             }
             if (isSuitableToPrint(left)) {
@@ -260,7 +299,7 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
             return
         }
 
-        if (format.isJavaScript() || format.isCsharp()) {
+        if (format.isJavaScript() || format.isCsharp() || format.isGo()) {
             val toPrint = if (value is String) {
                 "\"" + GeneUtils.applyEscapes(value, mode = GeneUtils.EscapeMode.ASSERTION, format = format) + "\""
             } else {
@@ -270,6 +309,13 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
             if (isSuitableToPrint(toPrint)) {
                 if (format.isJavaScript()) {
                     lines.add("expect($responseVariableName.body$fieldPath).toBe($toPrint);")
+                } else if (format.isGo()) {
+                    when (value) {
+                        is Boolean -> lines.add("suite.Equal($toPrint, fastjson.GetBool($responseVariableName, $fieldPath))")
+                        is String -> lines.add("suite.Equal($toPrint, fastjson.GetString($responseVariableName, $fieldPath))")
+                        is Number -> lines.add("suite.Equal(float64($toPrint), fastjson.GetFloat64($responseVariableName, $fieldPath))")
+                        else -> throw IllegalStateException("Unsupported type: ${value::class}")
+                    }
                 } else {
                     assert(format.isCsharp())
                     if (fieldPath != ".traceId" || !lines.toString().contains("status == 400"))
@@ -283,7 +329,12 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
     }
 
 
-    protected fun handleAssertionsOnList(list: List<*>, lines: Lines, fieldPath: String, responseVariableName: String?) {
+    protected fun handleAssertionsOnList(
+        list: List<*>,
+        lines: Lines,
+        fieldPath: String,
+        responseVariableName: String?
+    ) {
 
         lines.add(collectionSizeCheck(responseVariableName, fieldPath, list.size))
 
@@ -348,6 +399,10 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
             return "Assert.True(string.IsNullOrEmpty(await $responseVariableName.Content.ReadAsStringAsync()));"
         }
 
+        if (format.isGo()) {
+            return "suite.Equal(http.NoBody, $responseVariableName.Body)"
+        }
+
         throw IllegalStateException("Unsupported format $format")
     }
 
@@ -366,22 +421,29 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
                 "expect($responseVariableName.body$fieldPath.length).toBe($expectedSize);"
             format.isCsharp() ->
                 "Assert.True($responseVariableName$fieldPath.Count == $expectedSize);"
+            format.isGo() ->
+                "suite.Len(fastjson.GetString($responseVariableName, $fieldPath), $expectedSize)"
             else -> throw IllegalStateException("Not supported format $format")
         }
 
         return instruction
     }
 
-    protected fun bodyIsString(bodyString: String, mode: GeneUtils.EscapeMode, responseVariableName: String?): String {
+    protected fun bodyIsString(
+        lines: Lines,
+        bodyString: String,
+        mode: GeneUtils.EscapeMode,
+        responseVariableName: String?
+    ) {
 
         val content = GeneUtils.applyEscapes(bodyString, mode, format = format)
 
         if (format.isJavaOrKotlin()) {
-            return ".body(containsString(\"$content\"))"
+            lines.add(".body(containsString(\"$content\"))")
         }
 
         if (format.isJavaScript()) {
-            return "expect($responseVariableName.text).toBe(\"$content\");"
+            lines.add("expect($responseVariableName.text).toBe(\"$content\");")
         }
 
         if (format.isCsharp()) {
@@ -390,7 +452,13 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
                 content.startsWith("\\\"") -> content.substring(2, content.length - 2)
                 else -> content
             }
-            return "Assert.True($responseVariableName == \"$k\");"
+            lines.add("Assert.True($responseVariableName == \"$k\");")
+        }
+
+        if (format.isGo()) {
+            lines.add("bodyBytes, err := io.ReadAll($responseVariableName.Body)")
+            lines.add("suite.NoError(err, \"Body read all error must be nil\")")
+            lines.add("suite.Contains(string(bodyBytes), \"$content\")")
         }
 
         throw IllegalStateException("Not supported format $format")
@@ -402,15 +470,15 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
      */
     protected fun isFieldToSkip(fieldName: String) =
     //TODO this should be from EMConfig
-            /*
-                There are some fields like "id" which are often non-deterministic,
-                which unfortunately would lead to flaky tests
-            */
-            listOf(
-                    "id",
-                    "timestamp", //needed since timestamps will change between runs
-                    "self" //TODO: temporary hack. Needed since ports might change between runs.
-            ).contains(fieldName.toLowerCase())
+        /*
+            There are some fields like "id" which are often non-deterministic,
+            which unfortunately would lead to flaky tests
+        */
+        listOf(
+            "id",
+            "timestamp", //needed since timestamps will change between runs
+            "self" //TODO: temporary hack. Needed since ports might change between runs.
+        ).contains(fieldName.toLowerCase())
 
     /**
      * Some content may be lead to problems in the resultant test case.
