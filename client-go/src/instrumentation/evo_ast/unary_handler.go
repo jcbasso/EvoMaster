@@ -27,12 +27,10 @@ func (b *UnaryHandler) Handle(expr *dst.UnaryExpr, pos token.Position, cursor *d
 	return true
 }
 
-func (b *UnaryHandler) notExpr(expr dst.Expr) *dst.ExprStmt {
+func (b *UnaryHandler) notExpr(expr dst.Expr) *dst.CallExpr {
 	// _evomaster_Not(expr)
-	return &dst.ExprStmt{
-		X: &dst.CallExpr{
-			Fun:  dst.NewIdent("_evomaster_Not"),
-			Args: []dst.Expr{expr},
-		},
+	return &dst.CallExpr{
+		Fun:  dst.NewIdent("_evomaster_Not"),
+		Args: []dst.Expr{expr},
 	}
 }
