@@ -48,8 +48,12 @@ func GetLeftAlignmentDistance(a string, b string) float64 {
 	dist := diff * MAX_CHAR_DISTANCE
 
 	min := len(a)
-	if len(b) > len(a) {
-		min = len(a)
+	if len(a) > len(b) {
+		min = len(b)
+	}
+
+	if min == 0 { // One of the strings is empty
+		return dist
 	}
 
 	for i := 0; i < min; i++ {
