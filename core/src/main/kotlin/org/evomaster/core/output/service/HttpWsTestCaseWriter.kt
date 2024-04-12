@@ -548,7 +548,11 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
         } else if (format.isGo()) {
             bodyVarName = createUniqueBodyVariableName()
             lines.add("$bodyVarName, err := io.ReadAll($responseVariableName.Body)")
-            lines.add("suite.NoError(err, \"Request body read must be nil\")")
+            lines.add("suite.NoError(err, \"Request body read error must be nil\")")
+            lines.addEmpty()
+            lines.add("var p fastjson.Parser")
+            lines.add("v_$bodyVarName, err := p.ParseBytes($bodyVarName)")
+            lines.add("suite.NoError(err, \"Parser body creation error must be nil\")")
         }
 
         if (type.isCompatible(MediaType.APPLICATION_JSON_TYPE) || type.toString().toLowerCase().contains("+json")) {

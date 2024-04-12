@@ -232,7 +232,11 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
                 val extendedPath = if (format.isJavaOrKotlin() && fieldPath.isEmpty()) {
                     fieldName
                 } else if (format.isGo()) {
-                    "${fieldPath}, ${fieldName}"
+                    if (fieldPath.isEmpty()) {
+                        fieldName
+                    } else {
+                        "${fieldPath}, ${fieldName}"
+                    }
                 } else if (needsDot) {
                     "${fieldPath}.${fieldName}"
                 } else {
@@ -258,7 +262,7 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
                 format.isJavaOrKotlin() -> ".body(\"${fieldPath}\", nullValue())"
                 format.isJavaScript() -> "expect($responseVariableName.body$fieldPath).toBe(null);"
                 format.isCsharp() -> "Assert.True($responseVariableName$fieldPath == null);"
-                format.isGo() -> "suite.Len(fastjson.GetBytes($responseVariableName, $fieldPath), 0)"
+                format.isGo() -> "suite.Nil(v_$responseVariableName.GetObject($fieldPath))"
                 else -> throw IllegalStateException("Format not supported yet: $format")
             }
             lines.add(instruction)
@@ -311,9 +315,9 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
                     lines.add("expect($responseVariableName.body$fieldPath).toBe($toPrint);")
                 } else if (format.isGo()) {
                     when (value) {
-                        is Boolean -> lines.add("suite.Equal($toPrint, fastjson.GetBool($responseVariableName, $fieldPath))")
-                        is String -> lines.add("suite.Equal($toPrint, fastjson.GetString($responseVariableName, $fieldPath))")
-                        is Number -> lines.add("suite.Equal(float64($toPrint), fastjson.GetFloat64($responseVariableName, $fieldPath))")
+                        is Boolean -> lines.add("suite.Equal($toPrint, v_$responseVariableName.GetBool($fieldPath))")
+                        is String -> lines.add("suite.Equal($toPrint, string(v_$responseVariableName.GetStringBytes($fieldPath)))")
+                        is Number -> lines.add("suite.Equal(float64($toPrint), v_$responseVariableName.GetFloat64($fieldPath))")
                         else -> throw IllegalStateException("Unsupported type: ${value::class}")
                     }
                 } else {
@@ -368,7 +372,11 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
             if (i == limit) {
                 break
             }
-            handleAssertionsOnField(list[i], lines, "$fieldPath[$i]", responseVariableName)
+
+            when {
+                format.isGo() -> handleAssertionsOnField(list[i], lines, "$fieldPath, \"$i\"", responseVariableName)
+                else -> handleAssertionsOnField(list[i], lines, "$fieldPath[$i]", responseVariableName)
+            }
         }
         if (skipped > 0) {
             lines.add("// Skipping assertions on the remaining $skipped elements. This limit of $limit elements can be increased in the configurations")
@@ -422,7 +430,7 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
             format.isCsharp() ->
                 "Assert.True($responseVariableName$fieldPath.Count == $expectedSize);"
             format.isGo() ->
-                "suite.Len(fastjson.GetString($responseVariableName, $fieldPath), $expectedSize)"
+                "suite.Len(v_$responseVariableName.GetArray($fieldPath), $expectedSize)"
             else -> throw IllegalStateException("Not supported format $format")
         }
 
@@ -440,10 +448,12 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
 
         if (format.isJavaOrKotlin()) {
             lines.add(".body(containsString(\"$content\"))")
+            return
         }
 
         if (format.isJavaScript()) {
             lines.add("expect($responseVariableName.text).toBe(\"$content\");")
+            return
         }
 
         if (format.isCsharp()) {
@@ -453,12 +463,17 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
                 else -> content
             }
             lines.add("Assert.True($responseVariableName == \"$k\");")
+            return
         }
 
         if (format.isGo()) {
-            lines.add("bodyBytes, err := io.ReadAll($responseVariableName.Body)")
-            lines.add("suite.NoError(err, \"Body read all error must be nil\")")
-            lines.add("suite.Contains(string(bodyBytes), \"$content\")")
+            val k = when {
+                content.startsWith("\"") -> content.substring(1, content.length - 1)
+                content.startsWith("\\\"") -> content.substring(2, content.length - 2)
+                else -> content
+            }
+            lines.add("suite.Contains(string(v_$responseVariableName.GetStringBytes()), \"$k\")")
+            return
         }
 
         throw IllegalStateException("Not supported format $format")

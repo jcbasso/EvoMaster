@@ -439,10 +439,17 @@ class TestSuiteWriter {
             lines.addEmpty(1)
             lines.add("import (")
             addImport("github.com/stretchr/testify/suite", lines)
+            addImport("github.com/valyala/fastjson", lines)
+            addImport("io", lines)
             addImport("net/http", lines)
+            addImport("strings", lines)
             addImport("testing", lines)
-            addImport("time", lines)
             lines.add(")")
+            lines.addEmpty(1)
+            lines.add("// These vars are added so Go compiler doesn't complain if imports aren't used")
+            lines.add("var _ *fastjson.Object = nil")
+            lines.add("var _ *io.Reader = nil")
+            lines.add("var _ *strings.Reader = nil")
         }
 
         if (format.isCsharp()) {
@@ -650,6 +657,7 @@ class TestSuiteWriter {
                     config.outputFormat.isGo() -> {
                         val controllerInitialization = controllerName?.replace("*","&") + "{}"
                         lines.add("suite.Controller = ${controllerInitialization}")
+                        lines.add("suite.Controller.SetPort(5012)")
                         lines.add("suite.BaseUrlOfSut = suite.Controller.StartSut()")
                     }
                 }
@@ -771,11 +779,6 @@ class TestSuiteWriter {
                     }
                     format.isGo() -> {
                         lines.add("suite.Controller.StopSut()")
-                        lines.addEmpty()
-                        lines.add("for suite.Controller.IsSutRunning()")
-                        lines.block {
-                            lines.add("time.Sleep(100 * time.Millisecond)")
-                        }
                     }
                     else -> {
                         addStatement("$controller.stopSut()", lines)
