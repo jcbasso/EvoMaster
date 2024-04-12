@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.inject.Inject
 import org.evomaster.client.java.controller.api.dto.*
 import org.evomaster.client.java.controller.api.dto.MockDatabaseDto
+import org.evomaster.client.java.controller.api.dto.auth.AuthenticationDto
 import org.evomaster.client.java.controller.api.dto.problem.RPCProblemDto
 import org.evomaster.client.java.controller.api.dto.problem.rpc.*
 import org.evomaster.core.EMConfig
@@ -281,7 +282,8 @@ class RPCEndpointsHandler {
                             }else if(sutInfoDto.unitsInfoDto.extractedSpecifiedDtos?.containsKey(s) == true){
                                 val schema = sutInfoDto.unitsInfoDto.extractedSpecifiedDtos[s]!!
                                 fromClass = true
-                                RestActionBuilderV3.createObjectGeneForDTO("return", schema, s, config.enableSchemaConstraintHandling)
+                                RestActionBuilderV3.createGeneForDTO("return", schema, s,
+                                    RestActionBuilderV3.Options(enableConstraintHandling=config.enableSchemaConstraintHandling))
                             }else{
                                 val node = readJson(dto.responses[index])
                                 if (node != null){
@@ -320,7 +322,7 @@ class RPCEndpointsHandler {
                     }
                     var fromClass = false
 
-                    val responseGene = (if (responseTypeClass != null){
+                    val responseGene = ((if (responseTypeClass != null){
                         handleDtoParam(responseTypeClass).also { fromClass = (dbDto.responseFullTypeWithGeneric != null) }
                     }else if (dbDto.response != null){
                         val node = readJson(dbDto.response)
@@ -331,7 +333,9 @@ class RPCEndpointsHandler {
                         }
                     }else{
                         StringGene("return")
-                    }.run { wrapWithOptionalGene(this, true) }) as OptionalGene
+                    }).run {
+                        wrapWithOptionalGene(this, true)
+                    }) as OptionalGene
 
                     val response = ClassResponseParam(className = dbDto.responseFullTypeWithGeneric?:dbDto.responseFullType, responseType = EnumGene("responseType", listOf("JSON")), response = responseGene)
                     if (fromClass) response.responseParsedWithClass()
@@ -752,7 +756,7 @@ class RPCEndpointsHandler {
         var eactions : List<StructuralElement>? = externalActions
         // get external action if not specified
         if (externalActions.isNullOrEmpty()){
-            eactions = (action.parent as EnterpriseActionGroup)
+            eactions = (action.parent as EnterpriseActionGroup<*>)
                 .groupsView()!!.getAllInGroup(GroupsOfChildren.EXTERNAL_SERVICES)
         }
 

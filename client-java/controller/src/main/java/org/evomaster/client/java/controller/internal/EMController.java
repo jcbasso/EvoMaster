@@ -10,8 +10,8 @@ import org.evomaster.client.java.controller.api.dto.database.operations.MongoIns
 import org.evomaster.client.java.controller.api.dto.problem.*;
 import org.evomaster.client.java.controller.mongo.MongoScriptRunner;
 import org.evomaster.client.java.controller.problem.*;
-import org.evomaster.client.java.controller.db.QueryResult;
-import org.evomaster.client.java.controller.db.SqlScriptRunner;
+import org.evomaster.client.java.sql.QueryResult;
+import org.evomaster.client.java.sql.SqlScriptRunner;
 import org.evomaster.client.java.controller.problem.rpc.schema.LocalAuthSetupSchema;
 import org.evomaster.client.java.instrumentation.*;
 import org.evomaster.client.java.instrumentation.shared.StringSpecializationInfo;
@@ -336,8 +336,9 @@ public class EMController {
 
             boolean sqlHeuristics = dto.calculateSqlHeuristics != null && dto.calculateSqlHeuristics;
             boolean sqlExecution = dto.extractSqlExecutionInfo != null && dto.extractSqlExecutionInfo;
+            boolean advancedHeuristics = dto.advancedHeuristics != null && dto.advancedHeuristics;
 
-            noKillSwitch(() -> sutController.enableComputeSqlHeuristicsOrExtractExecution(sqlHeuristics, sqlExecution));
+            noKillSwitch(() -> sutController.enableComputeSqlHeuristicsOrExtractExecution(sqlHeuristics, sqlExecution, advancedHeuristics));
 
             boolean doReset = dto.resetState != null && dto.resetState;
 
@@ -526,6 +527,12 @@ public class EMController {
                         info.lastExecutedStatement = a.getLastExecutedStatement();
                         info.rawAccessOfHttpBodyPayload = a.isRawAccessOfHttpBodyPayload();
                         info.parsedDtoNames = new HashSet<>(a.getParsedDtoNamesView());
+                        info.hostnameResolutionInfoDtos = a.getHostnameInfos().stream()
+                                .map(hn -> new HostnameResolutionInfoDto(
+                                        hn.getHostname(),
+                                        hn.getResolvedAddress()
+                                ))
+                                .collect(Collectors.toList());
                         info.externalServices = a.getExternalServices().stream()
                                 .map(es -> new ExternalServiceInfoDto(
                                         es.getProtocol(),
@@ -805,7 +812,9 @@ public class EMController {
             } catch (Exception e) {
                 String msg = "Failed to execute database command: " + e.getMessage();
                 SimpleLogger.warn(msg);
-                return Response.status(400).entity(WrappedResponseDto.withError(msg)).build();
+                mongoInsertionResultsDto = new MongoInsertionResultsDto();
+                mongoInsertionResultsDto.handleFailedInsertion(dto.insertions, e);
+                return Response.status(400).entity(WrappedResponseDto.withData(mongoInsertionResultsDto)).build();
             }
 
             if (mongoInsertionResultsDto != null) {

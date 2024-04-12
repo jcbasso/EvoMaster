@@ -12,6 +12,7 @@ import org.evomaster.core.search.service.Archive
 import org.evomaster.core.search.service.FitnessFunction
 import org.evomaster.core.search.service.Minimizer
 import org.evomaster.core.search.service.Sampler
+import org.evomaster.core.seeding.service.rest.PirToRest
 
 class BlackBoxRestModule(
         val usingRemoteController: Boolean
@@ -23,6 +24,10 @@ class BlackBoxRestModule(
                 .asEagerSingleton()
 
         bind(object : TypeLiteral<Sampler<*>>() {})
+                .to(RestSampler::class.java)
+                .asEagerSingleton()
+
+        bind(AbstractRestSampler::class.java)
                 .to(RestSampler::class.java)
                 .asEagerSingleton()
 
@@ -62,5 +67,12 @@ class BlackBoxRestModule(
 
         bind(TestSuiteWriter::class.java)
                 .asEagerSingleton()
+
+        bind(SecurityRest::class.java)
+            .asEagerSingleton()
+
+        bind(PirToRest::class.java)
+            .asEagerSingleton()
+
     }
 }

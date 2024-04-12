@@ -13,8 +13,10 @@ import org.evomaster.client.java.controller.DtoUtils;
 import org.evomaster.client.java.controller.SutHandler;
 import org.evomaster.client.java.controller.api.ControllerConstants;
 import org.evomaster.client.java.controller.api.dto.*;
+import org.evomaster.client.java.controller.api.dto.auth.AuthenticationDto;
 import org.evomaster.client.java.controller.api.dto.constraint.ElementConstraintsDto;
 import org.evomaster.client.java.controller.api.dto.database.execution.ExecutionDto;
+import org.evomaster.client.java.controller.api.dto.database.execution.SqlExecutionLogDto;
 import org.evomaster.client.java.controller.api.dto.database.operations.InsertionDto;
 import org.evomaster.client.java.controller.api.dto.database.operations.InsertionResultsDto;
 import org.evomaster.client.java.controller.api.dto.database.operations.MongoInsertionDto;
@@ -24,13 +26,13 @@ import org.evomaster.client.java.controller.api.dto.database.schema.ExtraConstra
 import org.evomaster.client.java.controller.api.dto.MockDatabaseDto;
 import org.evomaster.client.java.controller.api.dto.problem.RPCProblemDto;
 import org.evomaster.client.java.controller.api.dto.problem.rpc.*;
-import org.evomaster.client.java.controller.db.DbCleaner;
-import org.evomaster.client.java.controller.db.SqlScriptRunner;
-import org.evomaster.client.java.controller.db.SqlScriptRunnerCached;
-import org.evomaster.client.java.controller.internal.db.DbSpecification;
+import org.evomaster.client.java.sql.DbCleaner;
+import org.evomaster.client.java.sql.SqlScriptRunner;
+import org.evomaster.client.java.sql.SqlScriptRunnerCached;
+import org.evomaster.client.java.sql.DbSpecification;
 import org.evomaster.client.java.controller.internal.db.MongoHandler;
-import org.evomaster.client.java.controller.internal.db.SchemaExtractor;
-import org.evomaster.client.java.controller.internal.db.SqlHandler;
+import org.evomaster.client.java.sql.SchemaExtractor;
+import org.evomaster.client.java.sql.internal.SqlHandler;
 import org.evomaster.client.java.controller.mongo.MongoScriptRunner;
 import org.evomaster.client.java.controller.problem.ProblemInfo;
 import org.evomaster.client.java.controller.problem.RPCProblem;
@@ -79,7 +81,7 @@ public abstract class SutController implements SutHandler, CustomizationHandler 
     private int controllerPort = ControllerConstants.DEFAULT_CONTROLLER_PORT;
     private String controllerHost = ControllerConstants.DEFAULT_CONTROLLER_HOST;
 
-    private final SqlHandler sqlHandler = new SqlHandler();
+    private final SqlHandler sqlHandler = new SqlHandler(new TaintHandlerExecutionTracer());
 
     private final MongoHandler mongoHandler = new MongoHandler();
 
@@ -274,9 +276,13 @@ public abstract class SutController implements SutHandler, CustomizationHandler 
         sqlHandler.handle(sql);
     }
 
-    public final void enableComputeSqlHeuristicsOrExtractExecution(boolean enableSqlHeuristics, boolean enableSqlExecution){
+    public final void enableComputeSqlHeuristicsOrExtractExecution(
+            boolean enableSqlHeuristics,
+            boolean enableSqlExecution,
+            boolean advancedHeuristics){
         sqlHandler.setCalculateHeuristics(enableSqlHeuristics);
         sqlHandler.setExtractSqlExecution(enableSqlHeuristics || enableSqlExecution);
+        sqlHandler.setAdvancedHeuristics(advancedHeuristics);
     }
 
 
@@ -354,7 +360,7 @@ public abstract class SutController implements SutHandler, CustomizationHandler 
                 last.getSqlInfoData().stream().forEach(it -> {
 //                    String sql = it.getCommand();
                     try {
-                        sqlHandler.handle(it);
+                        sqlHandler.handle(new SqlExecutionLogDto(it.getCommand(), it.getExecutionTime()));
                     } catch (Exception e){
                         SimpleLogger.error("FAILED TO HANDLE SQL COMMAND: " + it.getCommand());
                         assert false; //we should try to handle all cases in our tests
@@ -496,6 +502,20 @@ public abstract class SutController implements SutHandler, CustomizationHandler 
                             throw new RuntimeException("SQL Init Execution Error: fail to execute "+ c + " with error "+e);
                         }
                     });
+                });
+            });
+        }
+    }
+
+    private void reAddAllInitSql() throws SQLException{
+        if(tableInitSqlMap != null){
+            tableInitSqlMap.keySet().stream().forEach(t->{
+                tableInitSqlMap.get(t).forEach(c->{
+                    try {
+                        SqlScriptRunner.execCommand(getConnectionIfExist(), c);
+                    } catch (SQLException e) {
+                        throw new RuntimeException("SQL Init Execution Error: fail to execute "+ c + " with error "+e);
+                    }
                 });
             });
         }
@@ -1150,7 +1170,7 @@ public abstract class SutController implements SutHandler, CustomizationHandler 
      *
      * <p>
      * What type of info to provide here depends on the auth mechanism, e.g.,
-     * Basic or cookie-based (using {@link CookieLoginDto}).
+     * Basic or cookie-based (using {@link org.evomaster.client.java.controller.api.dto.auth.LoginEndpointDto}).
      * To simplify the creation of these DTOs with auth info, you can look
      * at {@link org.evomaster.client.java.controller.AuthUtils}.
      * </p>
@@ -1265,6 +1285,8 @@ public abstract class SutController implements SutHandler, CustomizationHandler 
                     value = e.getValue();
                 }}).collect(Collectors.toList());
 
+        infoDto.hostnameResolutionInfoDtos = info.getHostnameInfos().stream()
+                .map(h -> new HostnameResolutionInfoDto(h.getHostname(), h.getResolvedAddress())).collect(Collectors.toList());
         infoDto.externalServicesDto = info.getExternalServiceInfo().stream()
                 .map(e -> new ExternalServiceInfoDto(e.getProtocol(), e.getHostname(), e.getRemotePort()))
                 .collect(Collectors.toList());
@@ -1449,6 +1471,20 @@ public abstract class SutController implements SutHandler, CustomizationHandler 
                 if (spec==null || spec.connection == null || !spec.employSmartDbClean){
                     return;
                 }
+
+                if(tablesToClean == null){
+                    // all data will be reset
+                    DbCleaner.clearDatabase(spec.connection, null, null, null, spec.dbType);
+                    try {
+                        reAddAllInitSql();
+                    } catch (SQLException e) {
+                        throw new RuntimeException("Fail to process all specified initSqlScript "+e);
+                    }
+                    return;
+                }
+
+                if (tablesToClean.isEmpty()) return;
+
                 if (spec.schemaNames == null || spec.schemaNames.isEmpty())
                     DbCleaner.clearDatabase(spec.connection, null, null, tablesToClean, spec.dbType);
                 else

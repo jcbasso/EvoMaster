@@ -45,7 +45,8 @@ public abstract class RestTestBase  extends EnterpriseTestBase {
                 "--sutControllerPort", "" + controllerPort,
                 "--maxActionEvaluations", "" + iterations,
                 "--stoppingCriterion", "FITNESS_EVALUATIONS",
-                "--useTimeInFeedbackSampling" , "false"
+                "--useTimeInFeedbackSampling" , "false",
+                "--createConfigPathIfMissing", "false"
         ));
 
         return isDeterminismConsumer(args, lambda, times, notDeterminism);
@@ -331,6 +332,10 @@ public abstract class RestTestBase  extends EnterpriseTestBase {
         boolean ok = solution.getIndividuals().stream().noneMatch(
                 ind -> hasAtLeastOne(ind, verb, expectedStatusCode));
 
+        assertOK(solution, ok);
+    }
+
+    private static void assertOK(Solution<RestIndividual> solution, boolean ok) {
         StringBuffer msg = new StringBuffer("REST calls:\n");
         if (!ok) {
             solution.getIndividuals().stream().flatMap(ind -> ind.evaluatedMainActions().stream())
@@ -342,5 +347,16 @@ public abstract class RestTestBase  extends EnterpriseTestBase {
         assertTrue(ok, msg.toString());
     }
 
+    protected void assertNone(Solution<RestIndividual> solution,
+                              HttpVerb verb,
+                              int expectedStatusCode,
+                              String path,
+                              String inResponse){
+
+        boolean ok = solution.getIndividuals().stream().noneMatch(
+                ind -> hasAtLeastOne(ind, verb, expectedStatusCode, path, inResponse));
+
+        assertOK(solution, ok);
+    }
 
 }

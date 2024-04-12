@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.evomaster</groupId>
         <artifactId>evomaster</artifactId>
-        <version>2.0.0</version>
+        <version>3.0.1-SNAPSHOT</version>
     </parent>
 
     <groupId>org.evomaster</groupId>
@@ -20,6 +20,9 @@
         <module>client-util</module>
         <module>ci-utils</module>
         <module>dependencies</module>
+        <module>sql</module>
+        <module>sql-dto</module>
+        <module>distance-heuristics</module>
     </modules>
 
     <dependencyManagement>

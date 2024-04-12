@@ -40,11 +40,13 @@ __Key features__:
 * _Whitebox_ testing mode: can be used for APIs compiled to
   JVM (e.g., Java and Kotlin). _EvoMaster_ analyses the bytecode of the tested applications, and uses
   several heuristics such as _testability transformations_ and _taint analysis_ to be able to generate
-  more effective test cases. We support JDK __8__ and the major LTS versions after that (currently JDK __17__). Might work on other JVM versions, but we provide __NO__ support for it.
-  Note: there is initial support for other languages as well, like for example JavaScript/TypeScript and C#, but they are not in a stable, feature-complete state yet.
+  more effective test cases. We support JDK __8__ and the major LTS versions after that (currently JDK __17__, where JDK __21__ has not been properly tested yet). Might work on other JVM versions, but we provide __NO__ support for it.
+  Note: there was initial support for other languages as well, like for example JavaScript/TypeScript and C#, but they are not in a stable, feature-complete state. The support for those languages has been dropped, at least for the time being. 
 
 * _Installation_: we provide installers for the main operating systems: Windows (`.msi`),
   OSX (`.dmg`) and Linux (`.deb`). We also provide an uber-fat JAR file.
+  To download them, see the [Release page](https://github.com/EMResearch/EvoMaster/releases).
+  Release notes are present in the file [release_notes.md](https://github.com/EMResearch/EvoMaster/blob/master/release_notes.md).
 
 * _State-of-the-art_: an [independent study (2022)](https://arxiv.org/abs/2204.08348), comparing 10 fuzzers on 20 RESTful APIs, shows that _EvoMaster_ gives the best results.
 
@@ -118,13 +120,38 @@ __Known limitations__:
 
 * How to [Download and Install EvoMaster on Windows 10](https://youtu.be/uh_XzGxws9o), using its _.msi_ installer.
 
+* [Short presentation](https://youtu.be/iQSAlrr-PZo) (5 minutes) about version 2.0.0. 
+
+### Alternatives
+
+In the last few years, several few tools have been proposed in the academic literature and in the open-source community.
+You can read more details in this [2023 survey](docs/publications/2023_tosem_survey.pdf) on REST API testing.
+
+Existing open-source tools for REST API fuzzing are for example (in alphabetic order):
+[Dredd](https://github.com/apiaryio/dredd),
+[Fuzz-lightyear](https://github.com/Yelp/fuzz-lightyear),
+[ResTest](https://github.com/isa-group/RESTest),
+[RestCT](https://github.com/GIST-NJU/RestCT),
+[Restler](https://github.com/microsoft/restler-fuzzer),
+[RestTestGen](https://github.com/SeUniVr/RestTestGen),
+and
+[Schemathesis](https://github.com/schemathesis/schemathesis).
+
+All these tools are _black-box_, i.e., they do not analyze the source-code of the tested APIs to generate more effective test data.
+As we are the authors of EvoMaster, we are too biased to compare it properly with those other black-box tools.
+However, an [independent study (2022)](https://arxiv.org/abs/2204.08348) shows that EvoMaster is among the best performant.
+Furthermore, if your APIs are running on the JVM (e.g., written in Java or Kotlin), then EvoMaster has clearly an advantage, as it supports _white-box_ testing. 
+
+
 ### Hiring
 
 Depending on the year, we might have funding for _postdoc_ and _PhD student_ positions to work on this project (in Oslo, Norway).
 
-Current positions:
-* 2023: PhD student positions, [1 position available](https://www.kristiania.no/en/about-kristiania/vacant-positions/?rmpage=job&rmjob=679&rmlang=UK).
+Current open positions: none.
+<!---
+* 2023: PhD student positions. No new calls scheduled for the moment.
 * 2023: Postdoc positions. No new calls scheduled for the moment.
+--->
 
 For questions on these positions, please contact Prof. Andrea Arcuri.
 

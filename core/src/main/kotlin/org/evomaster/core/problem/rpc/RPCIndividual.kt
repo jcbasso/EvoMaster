@@ -9,8 +9,10 @@ import org.evomaster.core.sql.SqlActionUtils
 import org.evomaster.core.mongo.MongoDbAction
 import org.evomaster.core.problem.api.ApiWsIndividual
 import org.evomaster.core.problem.enterprise.EnterpriseActionGroup
+import org.evomaster.core.problem.enterprise.EnterpriseChildTypeVerifier
 import org.evomaster.core.problem.enterprise.SampleType
 import org.evomaster.core.problem.externalservice.ApiExternalServiceAction
+import org.evomaster.core.problem.graphql.GraphQLAction
 
 import org.evomaster.core.search.*
 import org.evomaster.core.search.gene.Gene
@@ -27,15 +29,14 @@ class RPCIndividual(
     index: Int = -1,
     allActions: MutableList<ActionComponent>,
     mainSize: Int = allActions.size,
-    dbSize: Int = 0,
-    groups: GroupsOfChildren<StructuralElement> = getEnterpriseTopGroups(allActions, mainSize, dbSize)
+    sqlSize: Int = 0,
+    mongoSize: Int = 0,
+    dnsSize: Int = 0,
+    groups: GroupsOfChildren<StructuralElement> = getEnterpriseTopGroups(allActions, mainSize, sqlSize,mongoSize,dnsSize)
 ) : ApiWsIndividual(
     sampleType,
     trackOperator, index, allActions,
-    childTypeVerifier = {
-        EnterpriseActionGroup::class.java.isAssignableFrom(it)
-                || SqlAction::class.java.isAssignableFrom(it)
-    },
+    childTypeVerifier = EnterpriseChildTypeVerifier(RPCCallAction::class.java),
     groups
 ) {
 
@@ -65,7 +66,7 @@ class RPCIndividual(
                     )
                 }})
         },
-        mainSize = actions.size, dbSize = dbInitialization.size)
+        mainSize = actions.size, sqlSize = dbInitialization.size)
 
     /**
      * TODO: Verify the implementation
@@ -80,9 +81,6 @@ class RPCIndividual(
         }
     }
 
-    override fun size(): Int {
-        return seeMainExecutableActions().size
-    }
 
     override fun canMutateStructure(): Boolean = true
 
@@ -114,10 +112,10 @@ class RPCIndividual(
      * remove an action from [actions] at [position]
      */
     fun removeAction(position: Int) {
-        killChildByIndex(getFirstIndexOfEnterpriseActionGroup() + position) as EnterpriseActionGroup
+        killChildByIndex(getFirstIndexOfEnterpriseActionGroup() + position) as EnterpriseActionGroup<*>
     }
 
-    private fun getFirstIndexOfEnterpriseActionGroup() = max(0, max(children.indexOfLast { it is SqlAction }+1, children.indexOfFirst { it is EnterpriseActionGroup }))
+    private fun getFirstIndexOfEnterpriseActionGroup() = max(0, max(children.indexOfLast { it is SqlAction }+1, children.indexOfFirst { it is EnterpriseActionGroup<*> }))
 
     override fun copyContent(): Individual {
         return RPCIndividual(
@@ -126,7 +124,9 @@ class RPCIndividual(
             index,
             children.map { it.copy() }.toMutableList() as MutableList<ActionComponent>,
             mainSize = groupsView()!!.sizeOfGroup(GroupsOfChildren.MAIN),
-            dbSize = groupsView()!!.sizeOfGroup(GroupsOfChildren.INITIALIZATION_SQL)
+            sqlSize = groupsView()!!.sizeOfGroup(GroupsOfChildren.INITIALIZATION_SQL),
+            mongoSize = groupsView()!!.sizeOfGroup(GroupsOfChildren.INITIALIZATION_MONGO),
+            dnsSize = groupsView()!!.sizeOfGroup(GroupsOfChildren.INITIALIZATION_DNS)
         )
     }
 

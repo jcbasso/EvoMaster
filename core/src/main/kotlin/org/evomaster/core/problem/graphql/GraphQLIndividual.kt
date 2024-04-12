@@ -7,6 +7,7 @@ import org.evomaster.core.sql.SqlAction
 import org.evomaster.core.mongo.MongoDbAction
 import org.evomaster.core.problem.api.ApiWsIndividual
 import org.evomaster.core.problem.enterprise.EnterpriseActionGroup
+import org.evomaster.core.problem.enterprise.EnterpriseChildTypeVerifier
 import org.evomaster.core.problem.externalservice.ApiExternalServiceAction
 import org.evomaster.core.problem.enterprise.SampleType
 import org.evomaster.core.search.*
@@ -16,15 +17,14 @@ class GraphQLIndividual(
     sampleType: SampleType,
     allActions : MutableList<out ActionComponent>,
     mainSize : Int = allActions.size,
-    dbSize: Int = 0,
-    groups : GroupsOfChildren<StructuralElement> = getEnterpriseTopGroups(allActions,mainSize,dbSize)
+    sqlSize: Int = 0,
+    mongoSize: Int = 0,
+    dnsSize: Int = 0,
+    groups : GroupsOfChildren<StructuralElement> = getEnterpriseTopGroups(allActions,mainSize,sqlSize,mongoSize,dnsSize)
 ) : ApiWsIndividual(
     sampleType = sampleType,
     children = allActions,
-    childTypeVerifier = {
-        EnterpriseActionGroup::class.java.isAssignableFrom(it)
-                || SqlAction::class.java.isAssignableFrom(it)
-    },
+    childTypeVerifier = EnterpriseChildTypeVerifier(GraphQLAction::class.java),
     groups = groups
 ) {
 
@@ -35,7 +35,9 @@ class GraphQLIndividual(
                 sampleType,
                 children.map { it.copy() }.toMutableList() as MutableList<ActionComponent>,
                 mainSize = groupsView()!!.sizeOfGroup(GroupsOfChildren.MAIN),
-                dbSize = groupsView()!!.sizeOfGroup(GroupsOfChildren.INITIALIZATION_SQL)
+                sqlSize = groupsView()!!.sizeOfGroup(GroupsOfChildren.INITIALIZATION_SQL),
+                mongoSize = groupsView()!!.sizeOfGroup(GroupsOfChildren.INITIALIZATION_MONGO),
+                dnsSize = groupsView()!!.sizeOfGroup(GroupsOfChildren.INITIALIZATION_DNS)
         )
 
     }

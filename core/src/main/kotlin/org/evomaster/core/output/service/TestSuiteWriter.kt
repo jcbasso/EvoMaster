@@ -81,6 +81,21 @@ class TestSuiteWriter {
         saveToDisk(content, config, name)
     }
 
+    /**
+     * write tests during seeding
+     */
+    fun writeTestsDuringSeeding(solution: Solution<*>,
+                                controllerName: String?,
+                                controllerInput: String?,
+                                snapshotTimestamp: String = ""){
+
+        if (!config.exportTestCasesDuringSeeding || solution.individualsDuringSeeding.isEmpty()) return
+
+        val solutionDuringSeeding = solution.extractSolutionDuringSeeding()
+        writeTests(solutionDuringSeeding, controllerName, controllerInput, snapshotTimestamp)
+
+    }
+
 
     fun convertToCompilableTestCode(
         solution: Solution<*>,
@@ -153,6 +168,7 @@ class TestSuiteWriter {
                             + "Exception: ${ex.localizedMessage} \n"
                             + "At ${ex.stackTrace.joinToString(separator = " \n -> ")}. "
                 )
+                assert(false) // in our tests, this should not happen... but should not crash in production
                 Lines()
             }
             lines.add(testLines)
@@ -188,9 +204,9 @@ class TestSuiteWriter {
         }
         val all = sampler.extractFkTables(accessedTable)
 
-        if (all.isEmpty()) return "null"
+        //if (all.isEmpty()) return "null"
 
-        val input = all.groupBy { it.lowercase() }.map { it.value.first() }.joinToString(",") { "\"$it\"" }
+        val input = if(all.isEmpty()) "" else all.groupBy { it.lowercase() }.map { it.value.first() }.joinToString(",") { "\"$it\"" }
         return when {
             config.outputFormat.isJava() -> "Arrays.asList($input)"
             config.outputFormat.isKotlin() -> "listOf($input)"
@@ -368,13 +384,13 @@ class TestSuiteWriter {
                 )
             }
 
-            if(config.isEnabledExternalServiceMocking() && solution.needsMockedDns() ){
+            if(config.isEnabledExternalServiceMocking() && solution.needsHostnameReplacement() ){
                 addImport("com.alibaba.dcm.DnsCacheManipulator", lines)
             }
 
 
             if(solution.hasAnySqlAction()) {
-                addImport("org.evomaster.client.java.controller.db.dsl.SqlDsl.sql", lines, true)
+                addImport("org.evomaster.client.java.sql.dsl.SqlDsl.sql", lines, true)
                 addImport("org.evomaster.client.java.controller.api.dto.database.operations.InsertionResultsDto", lines)
                 addImport(InsertionDto::class.qualifiedName!!, lines)
             }
@@ -784,7 +800,7 @@ class TestSuiteWriter {
                         addStatement("$controller.stopSut()", lines)
                         if (format.isJavaOrKotlin()
                             && config.isEnabledExternalServiceMocking()
-                            && solution.needsMockedDns()
+                            && solution.needsHostnameReplacement()
                         ) {
                             getWireMockServerActions(solution)
                                 .forEach { action ->
@@ -866,7 +882,7 @@ class TestSuiteWriter {
 
             if (format.isJavaOrKotlin()
                 && config.isEnabledExternalServiceMocking()
-                && solution.needsMockedDns()
+                && solution.needsHostnameReplacement()
             ) {
                 addStatement("DnsCacheManipulator.clearDnsCache()", lines)
             }

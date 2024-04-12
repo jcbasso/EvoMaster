@@ -1,5 +1,6 @@
 package org.evomaster.core.problem.api
 
+import org.evomaster.core.problem.enterprise.EnterpriseChildTypeVerifier
 import org.evomaster.core.problem.enterprise.EnterpriseIndividual
 import org.evomaster.core.problem.enterprise.SampleType
 import org.evomaster.core.search.action.ActionComponent
@@ -26,8 +27,8 @@ abstract class ApiWsIndividual (
      * a list of children of the individual
      */
     children: MutableList<out ActionComponent>,
-    childTypeVerifier: (Class<*>) -> Boolean,
-    groups : GroupsOfChildren<StructuralElement> = getEnterpriseTopGroups(children, children.size, 0)
+    childTypeVerifier: EnterpriseChildTypeVerifier,
+    groups : GroupsOfChildren<StructuralElement> = getEnterpriseTopGroups(children, children.size, 0, 0, 0)
 ): EnterpriseIndividual(sampleType, trackOperator, index, children, childTypeVerifier, groups){
 
 

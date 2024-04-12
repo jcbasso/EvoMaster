@@ -6,9 +6,31 @@ on:
       - "**"
     tags-ignore:
       - '**'
+    # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#onpushpull_requestpull_request_targetpathspaths-ignore
+    # Avoid building if only modifying non-code files.
+    # An exception is docs/options.md , as created from build
+    paths:
+      - "**"
+      - '!scripts/**'
+      - '!version.py'
+      - '!makeExecutable.sh'
+      - '!buildAll.sh'
+      - '!README.md'
+      - '!LICENSE'
+      - '!.gitignore'
+      - '!docs/**'
+      - '!release_notes.md'
+      - 'docs/options.md'
+### Unfortunately, had to disable this. Originally added to be able to run CI from PRs from forks (eg from external people).
+### But this leads to run CI 2 twice on each push on an open PR, regardless of fork.
+### It seems there is no solution for this:
+### https://github.com/orgs/community/discussions/26276
+#  pull_request:
+#    branches:
+#      - "**"
 
 env:
-  evomaster-version: 2.0.0
+  evomaster-version: 3.0.1
   # Unfortunately, to use JPackage we need JDK 17 or above :(
   # Which is really bad due to the madness of --add-opens.
   # Even if hunt down all cases of reflections in EM, there is still the problem of
@@ -55,13 +77,12 @@ jobs:
           path: core/target/evomaster.jar
           retention-days: ${{env.retention-days}}
           if-no-files-found: error
-          ### TODO disabled due to bug. See https://github.com/mikepenz/action-junit-report/issues/952
       # Make test report accessible from GitHub Actions (as Maven logs are long)
-#      - name: Publish Test Report
-#        if: success() || failure()
-#        uses: mikepenz/action-junit-report@v4
-#        with:
-#          report_paths: '**/target/surefire-reports/TEST-*.xml'
+      - name: Publish Test Report
+        if: success() || failure()
+        uses: mikepenz/action-junit-report@v4
+        with:
+          report_paths: '**/target/surefire-reports/TEST-*.xml'
       # Upload coverage results
       - name: Upload coverage to CodeCov
         run: curl -s https://codecov.io/bash | bash
@@ -221,7 +242,7 @@ jobs:
     needs: full-build-base
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@4
+      - uses: actions/checkout@v4
       - name: Setup JDK ${{env.release-jdk}}
         uses: actions/setup-java@v1
         with:

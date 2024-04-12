@@ -1,10 +1,10 @@
 package org.evomaster.core.output.service
 
 import org.evomaster.core.logging.LoggingUtil
-import org.evomaster.core.output.CookieWriter
+import org.evomaster.core.output.auth.CookieWriter
 import org.evomaster.core.output.Lines
 import org.evomaster.core.output.OutputFormat
-import org.evomaster.core.output.TokenWriter
+import org.evomaster.core.output.auth.TokenWriter
 import org.evomaster.core.output.service.TestWriterUtils.Companion.formatJsonWithEscapes
 import org.evomaster.core.problem.enterprise.EnterpriseActionGroup
 import org.evomaster.core.problem.externalservice.httpws.HttpExternalServiceAction
@@ -140,47 +140,50 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
             else -> "."
         }
 
+        //headers in specified auth info
         call.auth.headers.forEach {
             lines.add("$prefix$set(\"${it.name}\", \"${it.value}\") // ${call.auth.name}")
         }
 
+        val elc = call.auth.endpointCallLogin
+
+        //headers from schema
         call.parameters.filterIsInstance<HeaderParam>()
             .filter { !prechosenAuthHeaders.contains(it.name) }
-            .filter { !(call.auth.jsonTokenPostLogin != null && it.name.equals("Authorization", true)) }
+            .filter { elc?.token == null || !(it.name.equals(elc.token.httpHeaderName, true)) }
             .filter { it.isInUse() }
             .forEach {
                 val x = it.getRawValue()
                 lines.add("$prefix$set(\"${it.name}\", \"${GeneUtils.applyEscapes(x, GeneUtils.EscapeMode.BODY, format)}\")")
             }
 
-        val cookieLogin = call.auth.cookieLogin
-        if (cookieLogin != null) {
-            when {
-                format.isJavaOrKotlin() -> lines.add(".cookies(${CookieWriter.cookiesName(cookieLogin)})")
-                format.isJavaScript() -> lines.add(".set('Cookies', ${CookieWriter.cookiesName(cookieLogin)})")
-                format.isGo() -> lines.add("req.Header.Set(\"Cookies\", ${CookieWriter.cookiesName(cookieLogin)})")
-                //TODO C#
-            }
-        }
+        if (elc != null) {
 
-        //TODO make sure header was not already set
-        val tokenLogin = call.auth.jsonTokenPostLogin
-        if (tokenLogin != null) {
-            lines.add("$prefix$set(\"Authorization\", ${TokenWriter.tokenName(tokenLogin)}) // ${call.auth.name}")
+            if (!elc.expectsCookie()) {
+                val tokenHeader = elc.token!!.httpHeaderName
+                lines.add(".$set(\"$tokenHeader\", ${TokenWriter.tokenName(elc)}) // ${call.auth.name}")
+            } else {
+                when {
+                    format.isJavaOrKotlin() -> lines.add(".cookies(${CookieWriter.cookiesName(elc)})")
+                    format.isJavaScript() -> lines.add(".set('Cookies', ${CookieWriter.cookiesName(elc)})")
+                    format.isGo() -> lines.add("req.Header.Set(\"Cookies\", ${CookieWriter.cookiesName(elc)})")
+                    //TODO C#
+                }
+            }
         }
     }
 
 
     protected fun handleResponseAfterTheCall(
-        call: HttpWsAction,
-        res: HttpWsCallResult,
-        responseVariableName: String,
-        lines: Lines
+            call: HttpWsAction,
+            res: HttpWsCallResult,
+            responseVariableName: String,
+            lines: Lines
     ) {
 
         if (format.isJavaOrKotlin() //assertions handled in the call
-            || !needsResponseVariable(call, res)
-            || res.failedCall()
+                || !needsResponseVariable(call, res)
+                || res.failedCall()
         ) {
             return
         }
@@ -209,7 +212,7 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
 
         handleLastStatementComment(res, lines)
 
-        if (config.enableBasicAssertions) {
+        if (config.enableBasicAssertions && !call.shouldSkipAssertionsOnResponseBody()) {
             handleResponseAssertions(lines, res, responseVariableName)
         }
     }
@@ -232,18 +235,14 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
     ) {
 
         val exActions = mutableListOf<HttpExternalServiceAction>()
-        var anyDnsCache = false
         // add all used external service actions for the action
         if (config.isEnabledExternalServiceMocking()) {
-            if (evaluatedAction.action.parent !is EnterpriseActionGroup)
+            if (evaluatedAction.action.parent !is EnterpriseActionGroup<*>)
                 throw IllegalStateException("invalid parent of the RestAction, it is expected to be EnterpriseActionGroup, but it is ${evaluatedAction.action.parent!!::class.java.simpleName}")
-            val group = evaluatedAction.action.parent as EnterpriseActionGroup
+            val group = evaluatedAction.action.parent as EnterpriseActionGroup<*>
             exActions.addAll(
-                group.getExternalServiceActions().filterIsInstance<HttpExternalServiceAction>()
-                    .filter { it.active })
-            if (format.isJavaOrKotlin())
-                anyDnsCache = handleDnsForExternalServiceActions(
-                    lines, exActions, fv.getViewExternalRequestToDefaultWMByAction(index))
+                    group.getExternalServiceActions().filterIsInstance<HttpExternalServiceAction>()
+                            .filter { it.active })
 
             if (exActions.isNotEmpty()) {
                 if (format.isJavaOrKotlin()) {
@@ -262,7 +261,7 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
         if (res.failedCall()) {
             addActionInTryCatch(call, index, testCaseName, lines, res, testSuitePath, baseUrlOfSut)
         } else {
-            addActionLines(call,index, testCaseName, lines, res, testSuitePath, baseUrlOfSut)
+            addActionLines(call, index, testCaseName, lines, res, testSuitePath, baseUrlOfSut)
         }
 
         // reset all used external service action
@@ -272,16 +271,12 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
             } else {
                 lines.addEmpty(1)
                 exActions
-                    .distinctBy { it.externalService.getSignature() }
-                    .forEach { action ->
-                        lines.add("${TestWriterUtils.getWireMockVariableName(action.externalService)}.resetAll()")
-                        lines.appendSemicolon(format)
-                    }
+                        .distinctBy { it.externalService.getSignature() }
+                        .forEach { action ->
+                            lines.add("${TestWriterUtils.getWireMockVariableName(action.externalService)}.resetAll()")
+                            lines.appendSemicolon(format)
+                        }
             }
-        }
-        if (anyDnsCache){
-            lines.add("DnsCacheManipulator.clearDnsCache()")
-            lines.appendSemicolon(format)
         }
     }
 
@@ -332,7 +327,7 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
 
     abstract fun handleVerbEndpoint(baseUrlOfSut: String, _call: HttpWsAction, lines: Lines)
 
-    protected fun sendBodyCommand(): String {
+    fun sendBodyCommand(): String {
         return when {
             format.isJavaOrKotlin() -> "body"
             format.isJavaScript() -> "send"
@@ -361,7 +356,6 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
             when {
                 format.isJavaOrKotlin() -> lines.add(".contentType(\"${bodyParam.contentType()}\")")
                 format.isJavaScript() -> lines.add(".set('Content-Type','${bodyParam.contentType()}')")
-                format.isJavaScript() -> lines.add(".set('Content-Type','${bodyParam.contentType()}')")
                 //FIXME
                 //format.isCsharp() -> lines.add("Client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(\"${bodyParam.contentType()}\"));")
             }
@@ -369,13 +363,13 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
             if (bodyParam.isJson()) {
 
                 val json =
-                    bodyParam.gene.getValueAsPrintableString(mode = GeneUtils.EscapeMode.JSON, targetFormat = format)
+                        bodyParam.gene.getValueAsPrintableString(mode = GeneUtils.EscapeMode.JSON, targetFormat = format)
 
                 printSendJsonBody(json, lines)
 
             } else if (bodyParam.isTextPlain()) {
                 val body =
-                    bodyParam.gene.getValueAsPrintableString(mode = GeneUtils.EscapeMode.TEXT, targetFormat = format)
+                        bodyParam.gene.getValueAsPrintableString(mode = GeneUtils.EscapeMode.TEXT, targetFormat = format)
                 if (body != "\"\"") {
                     if (!format.isCsharp())
                         lines.add(".$send($body)")
@@ -396,8 +390,8 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
 
             } else if (bodyParam.isForm()) {
                 val body = bodyParam.gene.getValueAsPrintableString(
-                    mode = GeneUtils.EscapeMode.X_WWW_FORM_URLENCODED,
-                    targetFormat = format
+                        mode = GeneUtils.EscapeMode.X_WWW_FORM_URLENCODED,
+                        targetFormat = format
                 )
                 if (!format.isCsharp())
                     lines.add(".$send(\"$body\")")
@@ -470,7 +464,7 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
 
             handleLastStatementComment(res, lines)
 
-            if (config.enableBasicAssertions) {
+            if (config.enableBasicAssertions && !call.shouldSkipAssertionsOnResponseBody()) {
                 handleResponseAssertions(lines, res, null)
             }
 
@@ -504,7 +498,7 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
             lines.add(".assertThat()")
         }
 
-        if(res.getTooLargeBody()){
+        if (res.getTooLargeBody()) {
             lines.add("// the response payload was too large, above the threshold of ${config.maxResponseByteSize} bytes." +
                     " No assertion on it is therefore generated.")
             return
@@ -520,9 +514,9 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
         if (res.getBodyType() != null) {
             //TODO is there a better solution? where was this a problem?
             val bodyTypeSimplified = res.getBodyType()
-                .toString()
-                .split(";") // remove all associated variables
-                .first()
+                    .toString()
+                    .split(";") // remove all associated variables
+                    .first()
 
             val instruction = when {
                 format.isJavaOrKotlin() -> ".contentType(\"$bodyTypeSimplified\")"
@@ -537,7 +531,7 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
 
         val type = res.getBodyType()
         // if there is payload, but no type identified, treat it as plain text
-            ?: MediaType.TEXT_PLAIN_TYPE
+                ?: MediaType.TEXT_PLAIN_TYPE
 
         var bodyVarName = responseVariableName
 

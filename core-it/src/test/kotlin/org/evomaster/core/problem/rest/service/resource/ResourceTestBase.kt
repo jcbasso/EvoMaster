@@ -4,8 +4,8 @@ import com.google.inject.Module
 import com.netflix.governator.lifecycle.LifecycleManager
 import com.netflix.governator.guice.LifecycleInjector
 import org.evomaster.client.java.controller.api.dto.database.operations.*
-import org.evomaster.client.java.controller.db.SqlScriptRunner
-import org.evomaster.client.java.controller.internal.db.SchemaExtractor
+import org.evomaster.client.java.sql.SchemaExtractor
+import org.evomaster.client.java.sql.SqlScriptRunner
 import org.evomaster.core.BaseModule
 import org.evomaster.core.EMConfig
 import org.evomaster.core.TestUtils
@@ -19,6 +19,7 @@ import org.evomaster.core.sql.extract.h2.ExtractTestBaseH2
 import org.evomaster.core.problem.rest.RestCallAction
 import org.evomaster.core.problem.rest.RestIndividual
 import org.evomaster.core.problem.enterprise.SampleType
+import org.evomaster.core.problem.rest.Endpoint
 import org.evomaster.core.problem.rest.resource.RestResourceCalls
 import org.evomaster.core.problem.rest.service.*
 import org.evomaster.core.problem.rest.service.resource.model.ResourceBasedTestInterface
@@ -97,7 +98,7 @@ abstract class ResourceTestBase : ExtractTestBaseH2(), ResourceBasedTestInterfac
         }
     }
 
-    private fun preSteps(skip : List<String> = listOf(), doesInvolveDatabase : Boolean = false, doesAppleNameMatching : Boolean = false, probOfDep : Double = 0.0){
+    private fun preSteps(skip : List<Endpoint> = listOf(), doesInvolveDatabase : Boolean = false, doesAppleNameMatching : Boolean = false, probOfDep : Double = 0.0){
         config.probOfApplySQLActionToCreateResources = if(doesInvolveDatabase) 0.5 else 0.0
         config.doesApplyNameMatching = doesAppleNameMatching
         if (doesInvolveDatabase)
@@ -452,8 +453,8 @@ abstract class ResourceTestBase : ExtractTestBaseH2(), ResourceBasedTestInterfac
 
     private fun generateIndividualResults(individual: Individual) : List<ActionResult> = individual.seeActions(
         ActionFilter.ALL).map {
-        if (it is SqlAction) SqlActionResult().also { it.setInsertExecutionResult(true) }
-        else ActionResult()
+        if (it is SqlAction) SqlActionResult(it.getLocalId()).also { it.setInsertExecutionResult(true) }
+        else ActionResult(it.getLocalId())
     }
 }
 

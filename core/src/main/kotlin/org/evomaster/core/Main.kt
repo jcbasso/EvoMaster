@@ -4,14 +4,17 @@ import com.google.inject.Injector
 import com.google.inject.Key
 import com.google.inject.TypeLiteral
 import com.netflix.governator.guice.LifecycleInjector
+import org.evomaster.client.java.controller.api.EMTestUtils
 import org.evomaster.client.java.controller.api.dto.ControllerInfoDto
 import org.evomaster.client.java.instrumentation.shared.ObjectiveNaming
 import org.evomaster.core.AnsiColor.Companion.inBlue
 import org.evomaster.core.AnsiColor.Companion.inGreen
 import org.evomaster.core.AnsiColor.Companion.inRed
 import org.evomaster.core.AnsiColor.Companion.inYellow
+import org.evomaster.core.config.ConfigProblemException
 import org.evomaster.core.logging.LoggingUtil
 import org.evomaster.core.output.OutputFormat
+import org.evomaster.core.output.Termination
 import org.evomaster.core.output.TestSuiteSplitter
 import org.evomaster.core.output.clustering.SplitResult
 import org.evomaster.core.output.service.TestSuiteWriter
@@ -66,11 +69,13 @@ class Main {
 
                 /*
                     Before running anything, check if the input
-                    configurations are valid
+                    configurations are valid.
+                    Note: some setting might be evaluated later, eg, if they require
+                    to analyze the API schema.
                  */
                 val parser = try {
                     EMConfig.validateOptions(args)
-                } catch (e: Exception) {
+                } catch (e: ConfigProblemException) {
                     logError("Invalid parameter settings: " + e.message +
                             "\nUse --help to see the available options")
                     return
@@ -104,6 +109,10 @@ class Main {
                     is SutProblemException ->
                         logError("ERROR related to the system under test: ${cause.message}" +
                                 "\n  For white-box testing, look at the logs of the EvoMaster Driver to help debugging this problem.")
+
+                    is ConfigProblemException ->
+                        logError("Invalid parameter settings: ${cause.message}" +
+                                "\nUse --help to see the available options")
 
                     else ->
                         LoggingUtil.getInfoLogger().error(inRed("[ERROR] ") +
@@ -166,31 +175,16 @@ class Main {
             val config = injector.getInstance(EMConfig::class.java)
             val idMapper = injector.getInstance(IdMapper::class.java)
 
-            val solution = run(injector, controllerInfo)
-            val faults = solution.overall.potentialFoundFaults(idMapper)
-            val sampler : Sampler<*> = injector.getInstance(Key.get(object : TypeLiteral<Sampler<*>>(){}))
+            var solution = run(injector, controllerInfo)
 
-            resetExternalServiceHandler(injector)
-
+            //save data regarding the search phase
             writeOverallProcessData(injector)
-
             writeDependencies(injector)
-
             writeImpacts(injector, solution)
-
-            //writeStatistics(injector, solution)
-
-            writeCoveredTargets(injector, solution)
-
-            writeTests(injector, solution, controllerInfo)
-
-            writeStatistics(injector, solution)
-
             writeExecuteInfo(injector)
 
+
             val stc = injector.getInstance(SearchTimeController::class.java)
-            val statistics = injector.getInstance(Statistics::class.java)
-            val data = statistics.getData(solution)
 
             LoggingUtil.getInfoLogger().apply {
                 info("Evaluated tests: ${stc.evaluatedIndividuals}")
@@ -200,12 +194,53 @@ class Main {
                 if (!config.avoidNonDeterministicLogs) {
                     info("Passed time (seconds): ${stc.getElapsedSeconds()}")
                     info("Execution time per test (ms): ${stc.averageTestTimeMs}")
+                    info("Execution time per action (ms): ${stc.averageActionTimeMs}")
                     info("Computation overhead between tests (ms): ${stc.averageOverheadMsBetweenTests}")
-                    val timeouts = data.find { p -> p.header == Statistics.TEST_TIMEOUTS }!!.element.toInt()
-                    if (timeouts > 0) {
-                        info("TCP timeouts: $timeouts")
+                    if(!config.blackBox){
+                        info("Computation overhead of resetting the SUT (ms): ${stc.averageResetSUTTimeMs}")
+                        //This one might be confusing, as based only on minimization phase...
+                        //info("Data transfer overhead of test results, per test, all targets (bytes): ${stc.averageByteOverheadTestResultsAll}")
+                        debug("Data transfer overhead of fetching test results, per test, subset of targets (bytes): ${stc.averageByteOverheadTestResultsSubset}")
+                        info("Computation overhead of fetching test results, per test, subset of targets (ms): ${stc.averageOverheadMsTestResultsSubset}")
                     }
                 }
+            }
+
+
+            if(config.security){
+                //apply security testing phase
+                LoggingUtil.getInfoLogger().info("Starting to apply security testing")
+
+                //TODO might need to reset stc, and print some updated info again
+
+                when(config.problemType){
+                    EMConfig.ProblemType.REST -> {
+                        val securityRest = injector.getInstance(SecurityRest::class.java)
+                        solution = securityRest.applySecurityPhase()
+                    }
+                    else ->{
+                        LoggingUtil.getInfoLogger().warn("Security phase currently not handled for problem type: ${config.problemType}")
+                    }
+                }
+            }
+
+            writeCoveredTargets(injector, solution)
+            writeTests(injector, solution, controllerInfo)
+            writeStatistics(injector, solution) //FIXME if other phases after search, might get skewed data on 100% snapshots...
+
+            val statistics = injector.getInstance(Statistics::class.java)
+            val data = statistics.getData(solution)
+            val faults = solution.overall.potentialFoundFaults(idMapper)
+            val sampler : Sampler<*> = injector.getInstance(Key.get(object : TypeLiteral<Sampler<*>>(){}))
+
+            LoggingUtil.getInfoLogger().apply {
+
+                val timeouts = data.find { p -> p.header == Statistics.TEST_TIMEOUTS }!!.element.toInt()
+                if (timeouts > 0) {
+                    info("TCP timeouts: $timeouts")
+                }
+
+                info("Potential faults: ${faults.size}")
 
                 if (!config.blackBox || config.bbExperiments) {
                     val rc = injector.getInstance(RemoteController::class.java)
@@ -244,7 +279,6 @@ class Main {
                         //assert(linesInfo.total <= totalLines){ "WRONG COVERAGE: ${linesInfo.total} > $totalLines"}
 
                         info("Covered targets (lines, branches, faults, etc.): ${targetsInfo.total}")
-                        info("Potential faults: ${faults.size}")
 
                         if(totalLines == 0 || units == 0){
                             logError("Detected $totalLines lines to cover, for a total of $units units/classes." +
@@ -286,10 +320,16 @@ class Main {
 
                 if (config.stoppingCriterion == EMConfig.StoppingCriterion.TIME &&
                         config.maxTime == config.defaultMaxTime) {
-                    info(inGreen("To obtain better results, use the '--maxTime' option" +
-                            " to run the search for longer"))
+                    warn(inGreen("You are using the default time budget '${config.defaultMaxTime}'." +
+                            " This is only for demo purposes. " +
+                            " You should increase such test budget." +
+                            " To obtain better results, use the '--maxTime' option" +
+                            " to run the search for longer, like for example something between '1h' and '24h' hours."))
                 }
             }
+
+            resetExternalServiceHandler(injector)
+
             solution.statistics = data.toMutableList()
             return solution
         }
@@ -661,10 +701,20 @@ class Main {
                     .forEach { writer.writeTests(it, controllerInfoDto?.fullName,controllerInfoDto?.executableFullPath, snapshot) }
 
                 if (config.executiveSummary) {
-                    writeExecSummary(injector, controllerInfoDto, splitResult)
+
+                    // Onur - if there are fault cases, executive summary makes sense
+                    if ( splitResult.splitOutcome.any{ it.individuals.isNotEmpty()
+                                && it.termination != Termination.SUCCESSES}) {
+                        writeExecSummary(injector, controllerInfoDto, splitResult)
+                    }
+
+                    //writeExecSummary(injector, controllerInfoDto, splitResult)
                     //writeExecutiveSummary(injector, solution, controllerInfoDto, partialOracles)
                 }
             } else if (config.problemType == EMConfig.ProblemType.RPC){
+
+                // Man: only enable for RPC as it lacks of unit tests
+                writer.writeTestsDuringSeeding(solution, controllerInfoDto?.fullName, controllerInfoDto?.executableFullPath)
 
                 when(config.testSuiteSplitType){
                     EMConfig.TestSuiteSplitType.NONE -> writer.writeTests(solution, controllerInfoDto?.fullName, controllerInfoDto?.executableFullPath)

@@ -21,8 +21,8 @@ import org.evomaster.client.java.controller.api.dto.*
 import org.evomaster.client.java.controller.api.dto.database.execution.ExecutionDto
 import org.evomaster.client.java.controller.api.dto.database.operations.*
 import org.evomaster.client.java.controller.api.dto.problem.RestProblemDto
-import org.evomaster.client.java.controller.db.SqlScriptRunner
-import org.evomaster.client.java.controller.internal.db.SchemaExtractor
+import org.evomaster.client.java.sql.SqlScriptRunner
+import org.evomaster.client.java.sql.SchemaExtractor
 import org.evomaster.core.BaseModule
 import org.evomaster.core.EMConfig
 import org.evomaster.core.sql.SqlAction
@@ -151,8 +151,9 @@ abstract class RestIndividualTestBase {
             return range.map {r-> budget.map { Arguments.of(it, r) } }.flatten().stream()
         }
 
+        @JvmStatic
         @AfterAll
-        fun clean(){
+        fun clean(): Unit {
             mockServer.close()
         }
     }
@@ -174,7 +175,7 @@ abstract class RestIndividualTestBase {
 
     abstract fun getSampler() : AbstractRestSampler
     abstract fun getMutator() : StandardMutator<RestIndividual>
-    abstract fun getFitnessFunction() : AbstractRestFitness<RestIndividual>
+    abstract fun getFitnessFunction() : AbstractRestFitness
 
     @ParameterizedTest
     @MethodSource("getBudgetAndNumOfResourceForSampler")
@@ -600,7 +601,8 @@ abstract class RestIndividualTestBase {
                 extraHeuristics = (0 until executedActionCounter).map {
                     ExtraHeuristicsDto().apply {
                         if (employFakeDbHeuristicResult && randomness.nextBoolean()){
-                            databaseExecutionDto = ExecutionDto().apply {
+                            databaseExecutionDto = org.evomaster.client.java.controller.api.dto.database.execution.ExecutionDto()
+                                .apply {
                                 val table = randomness.choose( sqlInsertBuilder!!.getTableNames())
                                 val failed = randomness.choose(sqlInsertBuilder!!.getTable(table,true).columns.map { it.name })
                                 failedWhere = mapOf(table to setOf(failed))

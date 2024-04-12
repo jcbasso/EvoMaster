@@ -2,6 +2,7 @@ package org.evomaster.core.problem.api.service
 
 import com.google.inject.Inject
 import org.evomaster.client.java.controller.api.dto.database.execution.MongoFailedQuery
+import org.evomaster.client.java.instrumentation.shared.ExternalServiceSharedUtils
 import org.evomaster.core.EMConfig
 import org.evomaster.core.Lazy
 import org.evomaster.core.sql.SqlAction
@@ -10,6 +11,7 @@ import org.evomaster.core.sql.SqlInsertBuilder
 import org.evomaster.core.mongo.MongoDbAction
 import org.evomaster.core.problem.api.ApiWsIndividual
 import org.evomaster.core.problem.enterprise.EnterpriseActionGroup
+import org.evomaster.core.problem.externalservice.HostnameResolutionAction
 import org.evomaster.core.problem.externalservice.httpws.service.HarvestActualHttpWsResponseHandler
 import org.evomaster.core.problem.externalservice.httpws.service.HttpWsExternalServiceHandler
 import org.evomaster.core.problem.externalservice.httpws.HttpExternalServiceAction
@@ -70,7 +72,7 @@ abstract class ApiWsStructureMutator : StructureMutator() {
 
         ind.seeMainExecutableActions().forEachIndexed { index, action ->
             val parent = action.parent
-            if (parent !is EnterpriseActionGroup) {
+            if (parent !is EnterpriseActionGroup<*>) {
                 //TODO this should not really happen
                 val msg = "Action is not inside an EnterpriseActionGroup"
                 log.error(msg)
@@ -94,6 +96,13 @@ abstract class ApiWsStructureMutator : StructureMutator() {
                     val existingActions = parent.getExternalServiceActions()
 
                     val actions: MutableList<HttpExternalServiceAction> = mutableListOf()
+
+                    // FIXME: We are not considering the requests served by the Default WireMock server.
+                    //  However, since we add a dummy [HostnameResolution] action
+                    //  (org/evomaster/core/problem/rest/service/AbstractRestFitness.kt:833), at the end
+                    //  there is a test looking to connect to the service and expecting a response when external
+                    //  service is available.
+                    //  Which is causing few tests to fails under [HarvestingStrategyTest]
 
                     requests
                         .groupBy { it.absoluteURL }
@@ -146,6 +155,7 @@ abstract class ApiWsStructureMutator : StructureMutator() {
     ) {
         addInitializingDbActions(individual, mutatedGenes, sampler)
         addInitializingMongoDbActions(individual, mutatedGenes, sampler)
+        addInitializingHostnameResolutionActions(individual, mutatedGenes, sampler)
     }
 
     private fun <T: ApiWsIndividual> addInitializingMongoDbActions(
@@ -178,6 +188,44 @@ abstract class ApiWsStructureMutator : StructureMutator() {
                 addedInsertions
             )
         }
+    }
+
+    private fun <T : ApiWsIndividual> addInitializingHostnameResolutionActions(
+        individual: EvaluatedIndividual<*>,
+        mutatedGenes: MutatedGeneSpecification?,
+        sampler: ApiWsSampler<T>
+    ) {
+
+        val ind = individual.individual as? T
+            ?: throw IllegalArgumentException("Invalid individual type")
+
+        val old = ind.seeInitializingActions().filterIsInstance<HostnameResolutionAction>()
+
+        val addedInsertions: MutableList<Action> = mutableListOf()
+        externalServiceHandler.getHostnameResolutionActions().forEach { a ->
+            val hasActions = old.any { it.hostname == a.hostname && it.localIPAddress == a.localIPAddress }
+            if (!hasActions) {
+                addedInsertions.add(a)
+            }
+
+            // Removing the existing action added with the default WireMock address
+            val defaultActions = old.filter { it.hostname == a.hostname && it.localIPAddress == ExternalServiceSharedUtils.DEFAULT_WM_LOCAL_IP };
+            if (defaultActions.isNotEmpty()) {
+                ind.removeHostnameResolutionAction(defaultActions)
+            }
+        }
+
+        individual.individual.addInitializingHostnameResolutionActions(actions = addedInsertions)
+
+        // FIXME: Commented out now, since no Genes in the action
+        // update impact based on added genes
+//        if (mutatedGenes != null && config.isEnabledArchiveGeneSelection()) {
+//            individual.updateImpactGeneDueToAddedInitializationGenes(
+//                mutatedGenes,
+//                old,
+//                listOf(addedInsertions)
+//            )
+//        }
     }
 
     private fun <T : ApiWsIndividual> addInitializingDbActions(

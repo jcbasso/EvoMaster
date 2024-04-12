@@ -5,14 +5,18 @@ import org.evomaster.client.java.controller.api.EMTestUtils
 import org.evomaster.client.java.controller.api.dto.ActionDto
 import org.evomaster.client.java.controller.api.dto.AdditionalInfoDto
 import org.evomaster.client.java.controller.api.dto.TestResultsDto
+import org.evomaster.client.java.instrumentation.shared.ExternalServiceSharedUtils
 import org.evomaster.client.java.instrumentation.shared.ExternalServiceSharedUtils.getWMDefaultSignature
 import org.evomaster.core.Lazy
 import org.evomaster.core.logging.LoggingUtil
+import org.evomaster.core.problem.enterprise.auth.NoAuth
+import org.evomaster.core.problem.externalservice.HostnameResolutionAction
+import org.evomaster.core.problem.externalservice.HostnameResolutionInfo
 import org.evomaster.core.problem.externalservice.httpws.service.HarvestActualHttpWsResponseHandler
 import org.evomaster.core.problem.externalservice.httpws.service.HttpWsExternalServiceHandler
 import org.evomaster.core.problem.externalservice.httpws.HttpExternalServiceInfo
 import org.evomaster.core.problem.httpws.service.HttpWsFitness
-import org.evomaster.core.problem.httpws.auth.NoAuth
+import org.evomaster.core.problem.httpws.auth.HttpWsNoAuth
 import org.evomaster.core.problem.rest.*
 import org.evomaster.core.problem.rest.param.BodyParam
 import org.evomaster.core.problem.rest.param.HeaderParam
@@ -24,7 +28,9 @@ import org.evomaster.core.remote.TcpUtils
 import org.evomaster.core.search.action.Action
 import org.evomaster.core.search.action.ActionResult
 import org.evomaster.core.search.FitnessValue
+import org.evomaster.core.search.GroupsOfChildren
 import org.evomaster.core.search.Individual
+import org.evomaster.core.search.action.ActionFilter
 import org.evomaster.core.search.gene.*
 import org.evomaster.core.search.gene.collection.EnumGene
 import org.evomaster.core.search.gene.optional.OptionalGene
@@ -43,7 +49,7 @@ import javax.ws.rs.core.NewCookie
 import javax.ws.rs.core.Response
 
 
-abstract class AbstractRestFitness<T> : HttpWsFitness<T>() where T : Individual {
+abstract class AbstractRestFitness : HttpWsFitness<RestIndividual>() {
 
     // TODO: This will moved under ApiWsFitness once RPC and GraphQL support is completed
     @Inject
@@ -413,7 +419,7 @@ abstract class AbstractRestFitness<T> : HttpWsFitness<T>() where T : Individual 
 
         searchTimeController.waitForRateLimiter()
 
-        val rcr = RestCallResult()
+        val rcr = RestCallResult(a.getLocalId())
         actionResults.add(rcr)
 
         val response = try {
@@ -553,7 +559,7 @@ abstract class AbstractRestFitness<T> : HttpWsFitness<T>() where T : Individual 
             }
         }
 
-        if (response.status == 401 && a.auth !is NoAuth) {
+        if (response.status == 401 && a.auth !is NoAuth && !a.auth.requireMockHandling) {
             /*
                 if the endpoint itself is to get auth info, we might exclude auth check for it
                 eg,
@@ -754,7 +760,7 @@ abstract class AbstractRestFitness<T> : HttpWsFitness<T>() where T : Individual 
             return null
         }
 
-        val dto = updateFitnessAfterEvaluation(targets, allCovered, individual as T, fv)
+        val dto = updateFitnessAfterEvaluation(targets, allCovered, individual, fv)
             ?: return null
 
         handleExtra(dto, fv)
@@ -766,7 +772,7 @@ abstract class AbstractRestFitness<T> : HttpWsFitness<T>() where T : Individual 
             dto.additionalInfoList
         )
 
-        handleExternalServiceInfo(fv, dto.additionalInfoList)
+        handleExternalServiceInfo(individual, fv, dto.additionalInfoList)
 
         if(! allCovered) {
             if (config.expandRestIndividuals) {
@@ -790,8 +796,10 @@ abstract class AbstractRestFitness<T> : HttpWsFitness<T>() where T : Individual 
 
     /**
      * Based on info coming from SUT execution, register and start new WireMock instances.
+     *
+     * TODO push this thing up to hierarchy to EntepriseFitness
      */
-    private fun handleExternalServiceInfo(fv: FitnessValue, infoDto: List<AdditionalInfoDto>) {
+    private fun handleExternalServiceInfo(individual: RestIndividual, fv: FitnessValue, infoDto: List<AdditionalInfoDto>) {
 
         /*
             Note: this info here is based from what connections / hostname resolving done in the SUT,
@@ -802,6 +810,39 @@ abstract class AbstractRestFitness<T> : HttpWsFitness<T>() where T : Individual 
          */
 
         infoDto.forEachIndexed { index, info ->
+            info.hostnameResolutionInfoDtos.forEach { hn ->
+
+                val dns = HostnameResolutionInfo(
+                    hn.remoteHostname,
+                    hn.resolvedAddress
+                )
+                externalServiceHandler.addHostname(dns)
+
+                if(dns.isResolved()){
+                    /*
+                        We need to ask, are we in that special case in which a hostname was resolved but there is
+                        no action for it?
+                        that would represent a real website resolution, which we cannot allow in the generated tests.
+                        for this reason, in instrumentation, we redirect toward a RESERVED IP address.
+                        to guarantee such behavior in generated tests, where there is instrumentation, we need to modify
+                        the genotype of this evaluated individual (without modifying its phenotype)
+                     */
+                    val actions = individual.seeActions(ActionFilter.ONLY_DNS) as List<HostnameResolutionAction>
+                    if ((actions.isEmpty() || actions.none{ it.hostname == hn.remoteHostname}) &&
+                        // To avoid adding action for the local WM address in case of InetAddress used
+                        // in the case study.
+                        !externalServiceHandler.isWireMockAddress(hn.remoteHostname)){
+                        // OK, we are in that special case
+                        val hra = HostnameResolutionAction(hn.remoteHostname, ExternalServiceSharedUtils.RESERVED_RESOLVED_LOCAL_IP)
+                        individual.addChildToGroup(hra, GroupsOfChildren.INITIALIZATION_DNS)
+                        // TODO: Above line adds unnecessary tests at the end, which is
+                        //  causing the created tests to fail.
+                        //  Now handling in Mutator, removing existing actions with default IP address for the same hostname.
+
+                    }
+                }
+            }
+
             info.externalServices.forEach { es ->
 
                 /*
@@ -809,7 +850,7 @@ abstract class AbstractRestFitness<T> : HttpWsFitness<T>() where T : Individual 
                  */
 
                 /*
-                    TODO: check, do we really want to start WireMock isntances right now after a fitness evaluation?
+                    TODO: check, do we really want to start WireMock instances right now after a fitness evaluation?
                     We need to make sure then, if we do this, that a call in instrumented SUT with (now) and
                     without (previous fitness evaluation) WM instances would result in same behavior.
 
@@ -841,7 +882,7 @@ abstract class AbstractRestFitness<T> : HttpWsFitness<T>() where T : Individual 
         // TODO: Need to move under ApiWsFitness after the GraphQL and RPC support is completed
         if (index == 0) {
             actionDto.externalServiceMapping = externalServiceHandler.getExternalServiceMappings()
-            actionDto.localAddressMapping = externalServiceHandler.getLocalAddressMapping()
+            actionDto.localAddressMapping = externalServiceHandler.getLocalDomainNameMapping()
             actionDto.skippedExternalServices = externalServiceHandler.getSkippedExternalServices()
         }
         return actionDto
