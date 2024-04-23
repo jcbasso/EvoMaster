@@ -682,6 +682,13 @@ class TestSuiteWriter {
                     format.isJavaOrKotlin() -> addStatement("assertNotNull(baseUrlOfSut)", lines)
                     format.isJavaScript() -> addStatement("expect(baseUrlOfSut).toBeTruthy()", lines)
                 }
+            } else { // config.blackBox
+                when {
+                    config.outputFormat.isGo() -> {
+                        // Removing http / https prefix, because of how BaseUrlOfSut on Go works
+                        lines.add("suite.BaseUrlOfSut = \"${BlackBoxUtils.targetUrl(config, sampler).replace("^https?://".toRegex(), "")}\"")
+                    }
+                }
             }
 
             if(config.problemType == EMConfig.ProblemType.WEBFRONTEND){

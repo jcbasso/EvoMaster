@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Blackbox" type="JetRunConfigurationType" folderName="Go">
+    <option name="MAIN_CLASS_NAME" value="org.evomaster.core.Main" />
+    <module name="evomaster-core" />
+    <option name="PROGRAM_PARAMETERS" value="--blackBox=true --bbSwaggerUrl=http://localhost:5001/swagger.json --bbTargetUrl=http://localhost:5001 --maxTime=1m --outputFormat=GO --ratePerMinute=60 --seed=1 --outputFolder=$PROJECT_DIR$/../EMB-golang/go/rest/artificial/ncs/generated_bb_go_1m" />
+    <shortenClasspath name="NONE" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
