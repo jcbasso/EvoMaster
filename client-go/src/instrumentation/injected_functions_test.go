@@ -2,8 +2,7 @@ package instrumentation_test
 
 import (
 	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation"
-	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate/execution_tracer"
-	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate/objective_recorder"
+	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate"
 	"github.com/stretchr/testify/assert"
 	"go/token"
 	"testing"
@@ -14,8 +13,8 @@ func Test_CmpOrdered_Success(t *testing.T) {
 	givenFileName := "file"
 	givenLine := 1
 	givenBranchId := 1
-	defer execution_tracer.New().Reset()
-	defer objective_recorder.New().Reset(true)
+	defer staticstate.NewExecutionTracer().Reset()
+	defer staticstate.NewObjectiveRecorder().Reset(true)
 
 	cases := []struct {
 		name     string
@@ -87,8 +86,8 @@ func Test_CmpOrdered_Panic_on_difference(t *testing.T) {
 	givenValue1 := int(1)
 	givenValue2 := uint(1)
 	givenOp := token.LEQ
-	defer execution_tracer.New().Reset()
-	defer objective_recorder.New().Reset(true)
+	defer staticstate.NewExecutionTracer().Reset()
+	defer staticstate.NewObjectiveRecorder().Reset(true)
 
 	// When & Then
 	assert.Panics(t, func() {

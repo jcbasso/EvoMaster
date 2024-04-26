@@ -5,8 +5,6 @@ import (
 	"github.com/jcbasso/EvoMaster/client-go/src/controller/api/dto/problem"
 	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/shared"
 	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate"
-	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate/execution_tracer"
-	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate/objective_recorder"
 	"strings"
 )
 
@@ -42,38 +40,38 @@ func NewSutController(sutControllerInterface SutControllerInterface) *SutControl
 // GetAdditionalInfoList returns additional info for each action in the test.
 // The list is ordered based on the action index.
 func (s *SutController) GetAdditionalInfoList() []*staticstate.AdditionalInfo {
-	return execution_tracer.New().ExposeAdditionalInfoList()
+	return staticstate.NewExecutionTracer().ExposeAdditionalInfoList()
 }
 
 func (s *SutController) GetUnitsInfoDto() dto.UnitsInfoDto {
 	unitNames := []string{}
-	for key, _ := range objective_recorder.New().GetUnitNames() {
+	for key, _ := range staticstate.NewObjectiveRecorder().GetUnitNames() {
 		unitNames = append(unitNames, key)
 	}
 
 	return dto.UnitsInfoDto{
 		UnitNames:        unitNames,
-		NumberOfLines:    int(objective_recorder.New().GetNumberOfLines()),
-		NumberOfBranches: int(objective_recorder.New().GetNumberOfBranches()),
+		NumberOfLines:    int(staticstate.NewObjectiveRecorder().GetNumberOfLines()),
+		NumberOfBranches: int(staticstate.NewObjectiveRecorder().GetNumberOfBranches()),
 	}
 }
 
 // IsInstrumentationActivated Check if instrumentation is on.
 // returns true if the instrumentation is on
 func (s *SutController) IsInstrumentationActivated() bool {
-	return objective_recorder.New().GetNumberOfTargets() > 0
+	return staticstate.NewObjectiveRecorder().GetNumberOfTargets() > 0
 }
 
 // NewSearch Re-initialize all internal data to enable a completely new search phase
 // which should be independent of previous ones
 func (s *SutController) NewSearch() {
-	execution_tracer.New().Reset()
-	objective_recorder.New().Reset(false)
+	staticstate.NewExecutionTracer().Reset()
+	staticstate.NewObjectiveRecorder().Reset(false)
 }
 
 // NewTest Re-initialize some internal data needed before running a new test
 func (s *SutController) NewTest() {
-	execution_tracer.New().Reset()
+	staticstate.NewExecutionTracer().Reset()
 
 	/*
 	   Note: it should be fine but, if for any reason EM did not do
@@ -81,17 +79,17 @@ func (s *SutController) NewTest() {
 	   would be lost, as EM will have no way to ask for them later, unless
 	   we explicitly say to return ALL targets
 	*/
-	objective_recorder.New().ClearFirstTimeEncountered()
+	staticstate.NewObjectiveRecorder().ClearFirstTimeEncountered()
 }
 
 func (s *SutController) GetTargetInfos(ids map[int]bool) ([]staticstate.TargetInfo, error) {
 
 	list := []staticstate.TargetInfo{}
 
-	objectives := execution_tracer.New().GetInternalReferenceToObjectiveCoverage()
+	objectives := staticstate.NewExecutionTracer().GetInternalReferenceToObjectiveCoverage()
 
 	for id, _ := range ids {
-		descriptiveId, err := objective_recorder.New().GetDescriptiveID(int64(id))
+		descriptiveId, err := staticstate.NewObjectiveRecorder().GetDescriptiveID(int64(id))
 		if err != nil {
 			return nil, err
 		}
@@ -108,9 +106,9 @@ func (s *SutController) GetTargetInfos(ids map[int]bool) ([]staticstate.TargetIn
 	}
 
 	// If new targets were found, we add them even if not requested by EM
-	for _, s := range objective_recorder.New().GetTargetsSeenFirstTime() {
+	for _, s := range staticstate.NewObjectiveRecorder().GetTargetsSeenFirstTime() {
 		info := objectives[s]
-		info.MappedID = objective_recorder.New().GetMappedID(s)
+		info.MappedID = staticstate.NewObjectiveRecorder().GetMappedID(s)
 
 		list = append(list, info)
 	}
@@ -123,7 +121,7 @@ func (s *SutController) GetTargetInfos(ids map[int]bool) ([]staticstate.TargetIn
 // action does cover what.
 // @param dto is the DTO with the information about the action (eg its index in the test)
 func (s *SutController) NewAction(dto dto.ActionDto) {
-	execution_tracer.New().SetAction(
+	staticstate.NewExecutionTracer().SetAction(
 		staticstate.NewAction(
 			int64(dto.Index),
 			dto.InputVariables,
@@ -132,7 +130,7 @@ func (s *SutController) NewAction(dto dto.ActionDto) {
 }
 
 func (s *SutController) GetAllTargets() dto.AllTargetsDto {
-	allTargets := objective_recorder.New().GetAllTargets()
+	allTargets := staticstate.NewObjectiveRecorder().GetAllTargets()
 	files := []string{}
 	lines := []string{}
 	branches := []string{}
@@ -163,7 +161,7 @@ func (s *SutController) GetAllTargets() dto.AllTargetsDto {
 }
 
 func (s *SutController) GetFullObjectiveCoverage() dto.FullObjectiveCoverageDto {
-	objectiveCoverages := execution_tracer.New().GetFullInternalReferenceToObjectiveCoverage()
+	objectiveCoverages := staticstate.NewExecutionTracer().GetFullInternalReferenceToObjectiveCoverage()
 	files := []dto.CoverageDto{}
 	lines := []dto.CoverageDto{}
 	branches := []dto.CoverageDto{}

@@ -1,33 +1,33 @@
-package execution_tracer
+package staticstate
 
 import (
 	"fmt"
 	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/heuristic"
 	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/shared"
-	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate"
-	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate/objective_recorder"
+	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/shared/string_specialization"
+	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/shared/taint_type"
 	"strings"
 	"sync"
 )
 
 type ExecutionTracer struct {
-	objectiveCoverage    map[string]staticstate.TargetInfo // key: Descriptive ID
+	objectiveCoverage    map[string]TargetInfo // key: Descriptive ID
 	objectiveCoverageMx  sync.RWMutex
 	actionIndex          int64
 	actionIndexMx        sync.RWMutex
 	inputVariablesSet    map[string]bool
 	inputVariablesSetMx  sync.RWMutex
-	additionalInfoList   []*staticstate.AdditionalInfo
+	additionalInfoList   []*AdditionalInfo
 	additionalInfoListMx sync.RWMutex
 
-	fullObjectiveCoverage   map[string]staticstate.TargetInfo // key: Descriptive ID
+	fullObjectiveCoverage   map[string]TargetInfo // key: Descriptive ID
 	fullObjectiveCoverageMx sync.RWMutex
 }
 
 var executionTracerOnce sync.Once
 var executionTracerInstance *ExecutionTracer
 
-func New() *ExecutionTracer {
+func NewExecutionTracer() *ExecutionTracer {
 	executionTracerOnce.Do(func() {
 		executionTracerInstance = &ExecutionTracer{}
 		executionTracerInstance.Reset()
@@ -38,28 +38,28 @@ func New() *ExecutionTracer {
 
 func (o *ExecutionTracer) Reset() {
 	o.objectiveCoverageMx.Lock()
-	o.objectiveCoverage = map[string]staticstate.TargetInfo{}
+	o.objectiveCoverage = map[string]TargetInfo{}
 	o.objectiveCoverageMx.Unlock()
 	o.inputVariablesSetMx.Lock()
 	o.inputVariablesSet = map[string]bool{}
 	o.inputVariablesSetMx.Unlock()
 	o.additionalInfoListMx.Lock()
 	//log.Println("[WARN] Resetting action info list")
-	o.additionalInfoList = []*staticstate.AdditionalInfo{staticstate.NewAdditionalInfo()}
+	o.additionalInfoList = []*AdditionalInfo{NewAdditionalInfo()}
 	o.additionalInfoListMx.Unlock()
 
 	o.fullObjectiveCoverageMx.Lock()
-	o.fullObjectiveCoverage = map[string]staticstate.TargetInfo{}
+	o.fullObjectiveCoverage = map[string]TargetInfo{}
 	o.fullObjectiveCoverageMx.Unlock()
 }
 
-func (o *ExecutionTracer) SetAction(action *staticstate.Action) {
+func (o *ExecutionTracer) SetAction(action *Action) {
 	o.actionIndexMx.Lock()
 	if o.actionIndex != action.Index {
 		o.actionIndex = action.Index
 		o.additionalInfoListMx.Lock()
 		//log.Println(fmt.Sprintf("[WARN] Setting action. [action: %d]", action.Index))
-		o.additionalInfoList = append(o.additionalInfoList, &staticstate.AdditionalInfo{})
+		o.additionalInfoList = append(o.additionalInfoList, &AdditionalInfo{})
 		o.additionalInfoListMx.Unlock()
 	}
 	if action.InputVariables != nil && len(action.InputVariables) > 0 {
@@ -109,11 +109,11 @@ func (o *ExecutionTracer) CompletedLastExecutedStatement(lastLine string) {
 	}
 }
 
-func (o *ExecutionTracer) GetInternalReferenceToObjectiveCoverage() map[string]staticstate.TargetInfo {
+func (o *ExecutionTracer) GetInternalReferenceToObjectiveCoverage() map[string]TargetInfo {
 	o.objectiveCoverageMx.RLock()
-	res := map[string]staticstate.TargetInfo{}
+	res := map[string]TargetInfo{}
 	for key, value := range o.objectiveCoverage {
-		res[key] = staticstate.TargetInfo{
+		res[key] = TargetInfo{
 			MappedID:      value.MappedID,
 			DescriptiveID: value.DescriptiveID,
 			Value:         value.Value,
@@ -124,11 +124,11 @@ func (o *ExecutionTracer) GetInternalReferenceToObjectiveCoverage() map[string]s
 	return res
 }
 
-func (o *ExecutionTracer) GetFullInternalReferenceToObjectiveCoverage() map[string]staticstate.TargetInfo {
+func (o *ExecutionTracer) GetFullInternalReferenceToObjectiveCoverage() map[string]TargetInfo {
 	o.fullObjectiveCoverageMx.RLock()
-	res := map[string]staticstate.TargetInfo{}
+	res := map[string]TargetInfo{}
 	for key, value := range o.fullObjectiveCoverage {
-		res[key] = staticstate.TargetInfo{
+		res[key] = TargetInfo{
 			MappedID:      value.MappedID,
 			DescriptiveID: value.DescriptiveID,
 			Value:         value.Value,
@@ -182,7 +182,7 @@ func (o *ExecutionTracer) UpdateObjective(descriptiveID string, value float64) {
 	if value < 0 || value > 1 {
 		panic(fmt.Sprintf("invalid Value %.2f, out of range [0,1]", value))
 	}
-	targetInfo := staticstate.TargetInfo{
+	targetInfo := TargetInfo{
 		DescriptiveID: descriptiveID,
 		Value:         value,
 		ActionIndex:   o.actionIndex,
@@ -200,7 +200,7 @@ func (o *ExecutionTracer) UpdateObjective(descriptiveID string, value float64) {
 	}
 	o.fullObjectiveCoverageMx.Unlock()
 	o.objectiveCoverageMx.Unlock()
-	objective_recorder.New().UpdateTarget(descriptiveID, value)
+	NewObjectiveRecorder().UpdateTarget(descriptiveID, value)
 }
 
 func (o *ExecutionTracer) EnteringStatement(fileName string, line int, statement int) {
@@ -227,8 +227,87 @@ func (o *ExecutionTracer) UpdateBranch(fileName string, line int, branch int, tr
 	o.UpdateObjective(elseBranch, truthness.OfFalse)
 }
 
-func (o *ExecutionTracer) ExposeAdditionalInfoList() []*staticstate.AdditionalInfo {
+func (o *ExecutionTracer) ExposeAdditionalInfoList() []*AdditionalInfo {
 	o.additionalInfoListMx.RLock()
 	defer o.additionalInfoListMx.RUnlock()
-	return append([]*staticstate.AdditionalInfo(nil), o.additionalInfoList...)
+	return append([]*AdditionalInfo(nil), o.additionalInfoList...)
+}
+
+// IsTaintInput Check if the given input represented a tainted value from the test cases.
+// This could be based on static info of the input (eg, according to a precise
+// name convention given by TaintInputName), or dynamic info given directly by
+// the test itself (eg, the test at action can register a list of values to check
+// for)
+func (o *ExecutionTracer) IsTaintInput(input string) bool {
+	return taint_type.IsTaintInput(input) || o.inputVariablesSet[input]
+}
+
+func (o *ExecutionTracer) HandleTaintForStringEquals(left string, right string, ignoreCase bool) {
+	taintedLeft := o.IsTaintInput(left)
+	taintedRight := o.IsTaintInput(right)
+
+	taintType := taint_type.FULL_MATCH
+
+	if taintedLeft && taintedRight {
+		if left == right ||
+			ignoreCase && (strings.ToLower(left) == strings.ToLower(right)) {
+			//tainted, but compared to itself. so shouldn't matter
+			return
+		}
+
+		/*
+		   We consider binding only for base versions of taint, ie we ignore
+		   the special strings provided by the Core, as it would lead to nasty
+		   side-effects
+		*/
+		if !taint_type.IsTaintInput(left) || !taint_type.IsTaintInput(right) {
+			return
+		}
+
+		//TODO could have EQUAL_IGNORE_CASE
+		id := left + "___" + right
+		o.AddStringSpecialization(left, string_specialization.NewStringSpecializationInfo(string_specialization.EQUAL, id, taintType))
+		o.AddStringSpecialization(right, string_specialization.NewStringSpecializationInfo(string_specialization.EQUAL, id, taintType))
+		return
+	}
+
+	specialization := string_specialization.CONSTANT
+	if ignoreCase {
+		specialization = string_specialization.CONSTANT_IGNORE_CASE
+	}
+
+	if taintedLeft || taintedRight {
+		if taintedLeft {
+			o.AddStringSpecialization(left, string_specialization.NewStringSpecializationInfo(specialization, right, taintType))
+		} else {
+			o.AddStringSpecialization(right, string_specialization.NewStringSpecializationInfo(specialization, left, taintType))
+		}
+	}
+}
+
+func (o *ExecutionTracer) AddStringSpecialization(taintInputName string, info string_specialization.StringSpecializationInfo) {
+	o.additionalInfoListMx.Lock()
+	defer o.additionalInfoListMx.Unlock()
+	o.additionalInfoList[o.actionIndex].AddSpecialization(taintInputName, info)
+}
+
+func (o *ExecutionTracer) GetTaintType(input string) taint_type.TaintType {
+	if input == "" {
+		return taint_type.NONE
+	}
+
+	if o.IsTaintInput(input) {
+		return taint_type.FULL_MATCH
+	}
+
+	if taint_type.IncludesTaintInput(input) {
+		return taint_type.PARTIAL_MATCH
+	}
+	for s := range o.inputVariablesSet {
+		if strings.Contains(input, s) {
+			return taint_type.PARTIAL_MATCH
+		}
+	}
+
+	return taint_type.NONE
 }

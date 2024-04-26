@@ -1,9 +1,8 @@
-package objective_recorder
+package staticstate
 
 import (
 	"fmt"
 	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/shared"
-	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -21,14 +20,14 @@ type ObjectiveRecorder struct {
 	firstTimeEncounteredMx sync.RWMutex
 	allTargetsSet          map[string]bool
 	allTargetsSetMx        sync.RWMutex
-	unitsInfo              *staticstate.UnitsInfo
+	unitsInfo              *UnitsInfo
 	unitsInfoMx            sync.RWMutex
 }
 
 var objectiveRecorderOnce sync.Once
 var objectiveRecorderInstance *ObjectiveRecorder
 
-func New() *ObjectiveRecorder {
+func NewObjectiveRecorder() *ObjectiveRecorder {
 	objectiveRecorderOnce.Do(func() {
 		objectiveRecorderInstance = &ObjectiveRecorder{}
 		objectiveRecorderInstance.Reset(true)
@@ -55,7 +54,7 @@ func (o *ObjectiveRecorder) Reset(atLoadTime bool) {
 		o.allTargetsSet = map[string]bool{}
 		o.allTargetsSetMx.Unlock()
 		o.unitsInfoMx.Lock()
-		o.unitsInfo = staticstate.NewUnitsInfo()
+		o.unitsInfo = NewUnitsInfo()
 		o.unitsInfoMx.Unlock()
 	}
 }

@@ -3,8 +3,7 @@ package heuristic_test
 import (
 	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/heuristic"
 	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/shared"
-	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate/execution_tracer"
-	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate/objective_recorder"
+	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate"
 	"github.com/stretchr/testify/assert"
 	"go/token"
 	"math"
@@ -17,9 +16,9 @@ func TestHeuristicForBooleans_EvaluateOr_TrivialCases(t *testing.T) {
 	givenFileName := "file"
 	givenLine := 1
 	givenBranchId := 1
-	givenTracer := execution_tracer.New()
+	givenTracer := staticstate.NewExecutionTracer()
 	defer givenTracer.Reset()
-	givenObjectiveRecorder := objective_recorder.New()
+	givenObjectiveRecorder := staticstate.NewObjectiveRecorder()
 	defer givenObjectiveRecorder.Reset(true)
 
 	cases := []struct {
@@ -113,9 +112,9 @@ func TestHeuristicForBooleans_EvaluateOr_Chained(t *testing.T) {
 	givenBranchId1 := 1
 	givenBranchId2 := 2
 	givenBranchId3 := 3
-	givenTracer := execution_tracer.New()
+	givenTracer := staticstate.NewExecutionTracer()
 	defer givenTracer.Reset()
-	givenObjectiveRecorder := objective_recorder.New()
+	givenObjectiveRecorder := staticstate.NewObjectiveRecorder()
 	defer givenObjectiveRecorder.Reset(true)
 
 	leftFunc := func() bool {
@@ -152,9 +151,9 @@ func TestHeuristicForBooleans_EvaluateAnd_TrivialCases(t *testing.T) {
 	givenFileName := "file"
 	givenLine := 1
 	givenBranchId := 1
-	givenTracer := execution_tracer.New()
+	givenTracer := staticstate.NewExecutionTracer()
 	defer givenTracer.Reset()
-	givenObjectiveRecorder := objective_recorder.New()
+	givenObjectiveRecorder := staticstate.NewObjectiveRecorder()
 	defer givenObjectiveRecorder.Reset(true)
 
 	cases := []struct {
@@ -252,9 +251,9 @@ func TestHeuristicForBooleans_EvaluateAnd_Chained(t *testing.T) {
 	givenBranchId1 := 1
 	givenBranchId2 := 2
 	givenBranchId3 := 3
-	givenTracer := execution_tracer.New()
+	givenTracer := staticstate.NewExecutionTracer()
 	defer givenTracer.Reset()
-	givenObjectiveRecorder := objective_recorder.New()
+	givenObjectiveRecorder := staticstate.NewObjectiveRecorder()
 	defer givenObjectiveRecorder.Reset(true)
 
 	leftFunc := func() bool {
@@ -291,9 +290,9 @@ func TestHeuristicForBooleans_EvaluateUnorderedCmp(t *testing.T) {
 	givenFileName := "file"
 	givenLine := 1
 	givenBranchId := 1
-	givenTracer := execution_tracer.New()
+	givenTracer := staticstate.NewExecutionTracer()
 	defer givenTracer.Reset()
-	givenObjectiveRecorder := objective_recorder.New()
+	givenObjectiveRecorder := staticstate.NewObjectiveRecorder()
 	defer givenObjectiveRecorder.Reset(true)
 
 	cases := []struct {
@@ -524,9 +523,9 @@ func TestHeuristicForBooleans_EvaluateOrderedCmp_Int(t *testing.T) {
 	givenFileName := "file"
 	givenLine := 1
 	givenBranchId := 1
-	givenTracer := execution_tracer.New()
+	givenTracer := staticstate.NewExecutionTracer()
 	defer givenTracer.Reset()
-	givenObjectiveRecorder := objective_recorder.New()
+	givenObjectiveRecorder := staticstate.NewObjectiveRecorder()
 	defer givenObjectiveRecorder.Reset(true)
 
 	cases := []struct {
@@ -696,9 +695,9 @@ func TestHeuristicForBooleans_EvaluateOrderedCmp_Float(t *testing.T) {
 	givenFileName := "file"
 	givenLine := 1
 	givenBranchId := 1
-	givenTracer := execution_tracer.New()
+	givenTracer := staticstate.NewExecutionTracer()
 	defer givenTracer.Reset()
-	givenObjectiveRecorder := objective_recorder.New()
+	givenObjectiveRecorder := staticstate.NewObjectiveRecorder()
 	defer givenObjectiveRecorder.Reset(true)
 
 	cases := []struct {
@@ -804,9 +803,9 @@ func TestHeuristicForBooleans_EvaluateOrderedCmp_Uint(t *testing.T) {
 	givenFileName := "file"
 	givenLine := 1
 	givenBranchId := 1
-	givenTracer := execution_tracer.New()
+	givenTracer := staticstate.NewExecutionTracer()
 	defer givenTracer.Reset()
-	givenObjectiveRecorder := objective_recorder.New()
+	givenObjectiveRecorder := staticstate.NewObjectiveRecorder()
 	defer givenObjectiveRecorder.Reset(true)
 
 	cases := []struct {

@@ -161,7 +161,7 @@ func (h *HeuristicForBooleans) EvaluateUnorderedCmp(left any, op string, right a
 		panic(fmt.Sprintf("Invalid op: %s", op))
 	}
 
-	t := h.compareUnordered(left, op, right)
+	t := h.compareUnordered(left, op, right, tracer)
 
 	tracer.UpdateBranch(fileName, line, branchId, t)
 
@@ -172,11 +172,11 @@ func (h *HeuristicForBooleans) EvaluateUnorderedCmp(left any, op string, right a
 	return res
 }
 
-func (h *HeuristicForBooleans) compareUnordered(left any, op string, right any) *Truthness {
+func (h *HeuristicForBooleans) compareUnordered(left any, op string, right any, tracer Tracer) *Truthness {
 	if op == token.EQL.String() {
-		return GetEqualityTruthness(left, right)
+		return GetEqualityTruthness(left, right, tracer)
 	} else if op == token.NEQ.String() {
-		return h.compareUnordered(left, token.EQL.String(), right).Invert()
+		return h.compareUnordered(left, token.EQL.String(), right, tracer).Invert()
 	}
 
 	panic(fmt.Sprintf("Invalid op: %s", op))
@@ -229,4 +229,5 @@ func compareOrdered[T constraints.Ordered](h *HeuristicForBooleans, left T, op s
 
 type Tracer interface {
 	UpdateBranch(fileName string, line int, branch int, truthness *Truthness)
+	HandleTaintForStringEquals(left string, right string, ignoreCase bool)
 }

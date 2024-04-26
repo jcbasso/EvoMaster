@@ -45,6 +45,7 @@ const (
 	KotlinJunit5
 	JsJest
 	CsharpXunit
+	Go
 )
 
 func (e OutputFormat) String() string {
@@ -61,6 +62,8 @@ func (e OutputFormat) String() string {
 		return "JS_JEST"
 	case CsharpXunit:
 		return "CSHARP_XUNIT"
+	case Go:
+		return "GO"
 	default:
 		return ""
 	}

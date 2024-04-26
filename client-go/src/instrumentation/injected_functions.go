@@ -3,18 +3,17 @@ package instrumentation
 import (
 	"fmt"
 	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/heuristic"
-	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate/execution_tracer"
-	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate/objective_recorder"
+	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate"
 	"reflect"
 )
 
 func RegisterTargets(ids []string) {
 	for _, id := range ids {
-		objective_recorder.New().RegisterTarget(id)
+		staticstate.NewObjectiveRecorder().RegisterTarget(id)
 	}
 }
 
-var tracer = execution_tracer.New()
+var tracer = staticstate.NewExecutionTracer()
 var heuristicForBooleans = heuristic.NewHeuristicForBooleans()
 
 func EnteringStatement(fileName string, line int, statement int) {

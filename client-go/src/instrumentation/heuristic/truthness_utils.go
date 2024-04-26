@@ -19,7 +19,7 @@ func NormalizeValue(v float64) float64 {
 	return normalized
 }
 
-func GetEqualityTruthness(left any, right any) *Truthness {
+func GetEqualityTruthness(left any, right any, tracer Tracer) *Truthness {
 	lvalue := reflect.ValueOf(left)
 	rvalue := reflect.ValueOf(right)
 
@@ -35,7 +35,7 @@ func GetEqualityTruthness(left any, right any) *Truthness {
 		return NewTruthness(ofTrue, ofFalse)
 	}
 
-	distance := GetDistanceToEquality(lvalue, rvalue)
+	distance := GetDistanceToEquality(lvalue, rvalue, tracer)
 	normalizedDistance := NormalizeValue(distance)
 
 	ofFalse := H_REACHED

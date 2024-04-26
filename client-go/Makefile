@@ -1,4 +1,4 @@
-FULL_PATH?=/Users/juan.basso/Documents/University/thesis/EvoMaster-golang/client-go
+FULL_PATH?=/Users/jcbasso/Documents/University/EvoMaster-golang/client-go
 BIN?=${FULL_PATH}/bin
 INSTRUMENTATION_BIN?=${BIN}/instrumentation
 MAX_TIME?=3m

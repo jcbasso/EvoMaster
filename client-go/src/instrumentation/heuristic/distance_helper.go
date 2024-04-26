@@ -64,7 +64,7 @@ func GetLeftAlignmentDistance(a string, b string) float64 {
 }
 
 // GetDistanceToEquality compute distance between left and right ==
-func GetDistanceToEquality(lvalue reflect.Value, rvalue reflect.Value) float64 {
+func GetDistanceToEquality(lvalue reflect.Value, rvalue reflect.Value, tracer Tracer) float64 {
 	if BothInt(lvalue, rvalue) {
 		return GetDistanceToEqualityInt64(lvalue.Int(), rvalue.Int())
 	}
@@ -78,6 +78,7 @@ func GetDistanceToEquality(lvalue reflect.Value, rvalue reflect.Value) float64 {
 	}
 
 	if BothString(lvalue, rvalue) {
+		tracer.HandleTaintForStringEquals(lvalue.String(), rvalue.String(), false)
 		return GetDistanceToEqualityString(lvalue.String(), rvalue.String())
 	}
 
