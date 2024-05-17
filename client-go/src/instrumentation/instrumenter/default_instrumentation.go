@@ -71,7 +71,7 @@ func (e *DefaultInstrumentation) AddFile(src string) error {
 	// Check if there is a file-level ignore directive
 	ignoreDirective := hasIgnoreDirective(file)
 	if ignoreDirective {
-		log.Printf("file `%s` skipped due to ignore directive", src)
+		log.Printf("file `%s` skipped due to ignore directive\n", src)
 		return nil
 	}
 	//log.Println("creating parsed files")

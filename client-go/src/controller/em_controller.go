@@ -179,7 +179,7 @@ func (e *EMController) handleRunSut(w http.ResponseWriter, r *http.Request) {
 		}
 
 		//  regardless of where it was running or not, need to reset state.
-		//  this is controlled by a boolean, although most likely we ll always
+		//  this is controlled by a boolean, although most likely we'll always
 		//  want to do it
 		if sutRun.ResetState {
 			e.sutController.ResetStateOfSUT()
@@ -311,7 +311,7 @@ func (e *EMController) respond(w http.ResponseWriter, wrapper dto.WrappedRespons
 
 	err := e.testEncoding(wrapper)
 	if err != nil {
-		fmt.Printf("error encoding response: %v", err.Error())
+		fmt.Printf("error encoding response: %v\n", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintln(w, err.Error())
 		return
@@ -320,7 +320,7 @@ func (e *EMController) respond(w http.ResponseWriter, wrapper dto.WrappedRespons
 	w.WriteHeader(statusCode)
 	err = json.NewEncoder(w).Encode(wrapper)
 	if err != nil {
-		fmt.Printf("error final encoding response: %v", err.Error())
+		fmt.Printf("error final encoding response: %v\n", err.Error())
 		fmt.Println(err.Error())
 		fmt.Fprintln(w, err.Error())
 		return

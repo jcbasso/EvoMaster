@@ -74,8 +74,8 @@ func selectInstrumenter(pkgPath string, packageBuildDir string) instrumenter.Ins
 }
 
 // updateArgs Update the argument list by replacing source files that were instrumented.
-func updateArgs(args []string, argIndices map[string]int, written map[string]string) {
-	for src, dest := range written {
+func updateArgs(args []string, argIndices map[string]int, replacement map[string]string) {
+	for src, dest := range replacement {
 		argIndex := argIndices[src]
 		args[argIndex] = dest
 	}
@@ -121,13 +121,13 @@ func instrument(i instrumenter.Instrumenter, args []string, pkgPath, packageBuil
 	pkgName := ""
 	if len(instrumented) > 0 {
 		pkgName = instrumented[0].Name.Name
-		written, err := i.WriteInstrumentedFiles(packageBuildDir, instrumented)
+		replacement, err := i.WriteInstrumentedFiles(packageBuildDir, instrumented)
 		if err != nil {
 			return nil, err
 		}
-		log.Println(written)
+		log.Println(replacement)
 		// Replace original files in the args by the new ones
-		updateArgs(args, argIndices, written)
+		updateArgs(args, argIndices, replacement)
 	}
 
 	extraFiles, err := i.WriteExtraFiles(pkgName)

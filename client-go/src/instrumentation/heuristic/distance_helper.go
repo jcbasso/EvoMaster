@@ -26,7 +26,7 @@ func GetDistanceToEqualityUint64(a uint64, b uint64) float64 {
 }
 
 func GetDistanceToEqualityFloat64(a float64, b float64) float64 {
-	if a == math.MaxFloat64 || b == math.MaxFloat64 {
+	if math.IsInf(a, 0) || math.IsInf(b, 0) || math.IsNaN(a) || math.IsNaN(b) {
 		return math.MaxFloat64
 	}
 

@@ -1,7 +1,8 @@
-package main_test
+package main
 
 import (
 	"fmt"
+	"github.com/jcbasso/EvoMaster/client-go/src"
 	"math/rand"
 	"testing"
 	"unicode"
@@ -151,7 +152,7 @@ func TestParseFlags(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var flags compileFlagSet
-			parseFlags(&flags, tt.args)
+			src.ParseFlags(&flags, tt.args)
 			require.Equal(t, tt.expectedFlags, flags)
 
 			isValid := flags.IsValid()
