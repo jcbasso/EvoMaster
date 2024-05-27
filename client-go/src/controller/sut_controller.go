@@ -82,6 +82,29 @@ func (s *SutController) NewTest() {
 	staticstate.NewObjectiveRecorder().ClearFirstTimeEncountered()
 }
 
+func (s *SutController) GetAllCoveredTargetInfos() ([]staticstate.TargetInfo, error) {
+
+	list := []staticstate.TargetInfo{}
+
+	objectives := staticstate.NewExecutionTracer().GetInternalReferenceToObjectiveCoverage()
+
+	for _, info := range objectives {
+		if info.Value != 1 { // Filter only covered ones
+			continue
+		}
+
+		newInfo := staticstate.TargetInfo{
+			MappedID:      staticstate.NewObjectiveRecorder().GetMappedID(info.DescriptiveID),
+			DescriptiveID: "",
+			Value:         info.Value,
+			ActionIndex:   info.ActionIndex,
+		}
+		list = append(list, newInfo)
+	}
+
+	return list, nil
+}
+
 func (s *SutController) GetTargetInfos(ids map[int]bool) ([]staticstate.TargetInfo, error) {
 
 	list := []staticstate.TargetInfo{}

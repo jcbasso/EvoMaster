@@ -7,6 +7,7 @@ import (
 	"github.com/jcbasso/EvoMaster/client-go/src/controller/api"
 	"github.com/jcbasso/EvoMaster/client-go/src/controller/api/dto"
 	"github.com/jcbasso/EvoMaster/client-go/src/controller/api/dto/problem"
+	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -197,7 +198,10 @@ func (e *EMController) handleRunSut(w http.ResponseWriter, r *http.Request) {
 }
 
 func (e *EMController) handleTestResults(w http.ResponseWriter, r *http.Request) {
+	var err error
 	idsParam := r.URL.Query().Get("ids")
+	allCoveredParam := r.URL.Query().Get("allCovered")
+
 	ids := map[int]bool{}
 	for _, id := range strings.Split(idsParam, ",") {
 		if id != "" {
@@ -210,7 +214,22 @@ func (e *EMController) handleTestResults(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	targetInfos, err := e.sutController.GetTargetInfos(ids)
+	allCovered := false
+	if allCoveredParam != "" {
+		allCovered, err = strconv.ParseBool(allCoveredParam)
+		if err != nil {
+			e.respondError(w, "allCovered param must be bool", http.StatusBadRequest)
+			return
+		}
+	}
+
+	var targetInfos []staticstate.TargetInfo
+	if allCovered {
+		targetInfos, err = e.sutController.GetAllCoveredTargetInfos()
+	} else {
+		targetInfos, err = e.sutController.GetTargetInfos(ids)
+	}
+
 	if err != nil {
 		e.respondError(w, "Internal failure: cannot get test results from SUT controller", http.StatusInternalServerError)
 		return
