@@ -6,6 +6,7 @@ import (
 	"github.com/dave/dst/decorator"
 	"github.com/dave/dst/dstutil"
 	evo_ast2 "github.com/jcbasso/EvoMaster/client-go/src/instrumentation/evo_ast"
+	"go/ast"
 	"go/parser"
 	"go/printer"
 	"go/token"
@@ -40,6 +41,7 @@ func NewDefaultInstrumentation(pkgPath string, packageBuildDir string) Instrumen
 			evo_ast2.NewStatementHandler(pkgPath, &objectives),
 			evo_ast2.NewUnaryHandler(pkgPath),
 			evo_ast2.NewBinaryHandler(pkgPath, &objectives),
+			evo_ast2.NewDeclHandler(pkgPath),
 		),
 		objectives:   &objectives,
 		fset:         fset,
@@ -69,7 +71,7 @@ func (e *DefaultInstrumentation) AddFile(src string) error {
 	}
 
 	// Check if there is a file-level ignore directive
-	ignoreDirective := hasIgnoreDirective(file)
+	ignoreDirective := hasIgnoreDirective(astFile)
 	if ignoreDirective {
 		log.Printf("file `%s` skipped due to ignore directive\n", src)
 		return nil
@@ -242,14 +244,29 @@ func unvendorPackagePath(pkg string) (unvendored string) {
 	return pkg[i+len(vendorDir):]
 }
 
+// TODO: Fix, not sure why it is not working...
 // hasIgnoreDirective Return true if the node has a evomaster:ignore directive comment. Explanatory
 // text can be added after it (eg. `//evomaster:ignore because...`)
-func hasIgnoreDirective(node dst.Node) bool {
-	for _, comment := range node.Decorations().Start.All() {
-		if strings.HasPrefix(comment, ignoreDirective) {
-			return true
+//func hasIgnoreDirective(node dst.Node) bool {
+//	for _, comment := range node.Decorations().Start.All() {
+//		if strings.HasPrefix(comment, ignoreDirective) {
+//			return true
+//		}
+//	}
+//	return false
+//}
+
+// hasIgnoreDirective Return true if the node has a evomaster:ignore directive comment. Explanatory
+// text can be added after it (eg. `//evomaster:ignore because...`)
+func hasIgnoreDirective(node *ast.File) bool {
+	for _, cg := range node.Comments {
+		for _, comment := range cg.List {
+			if strings.HasPrefix(comment.Text, ignoreDirective) {
+				return true
+			}
 		}
 	}
+
 	return false
 }
 

@@ -32,16 +32,6 @@ func (s *StatementHandler) Handle(stmt dst.Stmt, pos token.Position, cursor *dst
 		return true
 	}
 
-	// Printing node
-	//fmt.Printf("%s:%d:%d\n", fileName, pos.Line, pos.Column)
-	//log.Printf("statement_handler [type: %s]\n", reflect.TypeOf(stmt))
-	//fmt.Printf("[cursor_index: %d]\n", cursor.Index())
-	//err := printer.Fprint(os.Stdout, fileSet, astNode)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//fmt.Println()
-
 	if cursor.Index() < 0 { // This means that there is no space to insert before and after
 		return true
 	}
@@ -53,6 +43,10 @@ func (s *StatementHandler) Handle(stmt dst.Stmt, pos token.Position, cursor *dst
 
 	switch stmt.(type) {
 	// TODO: Should add switch?
+	case *dst.CaseClause: // ignore each case clause and switch big clause.
+		return true
+	case *dst.SwitchStmt, *dst.TypeSwitchStmt:
+		cursor.InsertBefore(s.completionExpr(pos.Line, fileName, s.statementCounter))
 	case *dst.BranchStmt: // continue, break, goto, fallthrough. TODO: Should call it on fallthrough and goto?
 		cursor.InsertBefore(s.completionExpr(pos.Line, fileName, s.statementCounter))
 	case *dst.ForStmt, *dst.RangeStmt, *dst.IfStmt:

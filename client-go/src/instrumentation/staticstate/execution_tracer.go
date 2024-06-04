@@ -31,6 +31,9 @@ func NewExecutionTracer() *ExecutionTracer {
 	executionTracerOnce.Do(func() {
 		executionTracerInstance = &ExecutionTracer{}
 		executionTracerInstance.Reset()
+		executionTracerInstance.actionIndexMx.Lock()
+		executionTracerInstance.actionIndex = 0
+		executionTracerInstance.actionIndexMx.Unlock()
 	})
 
 	return executionTracerInstance
