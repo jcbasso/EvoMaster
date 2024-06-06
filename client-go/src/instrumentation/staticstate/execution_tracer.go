@@ -242,6 +242,8 @@ func (o *ExecutionTracer) ExposeAdditionalInfoList() []*AdditionalInfo {
 // the test itself (eg, the test at action can register a list of values to check
 // for)
 func (o *ExecutionTracer) IsTaintInput(input string) bool {
+	o.inputVariablesSetMx.RLock()
+	defer o.inputVariablesSetMx.RUnlock()
 	return taint_type.IsTaintInput(input) || o.inputVariablesSet[input]
 }
 
@@ -306,11 +308,13 @@ func (o *ExecutionTracer) GetTaintType(input string) taint_type.TaintType {
 	if taint_type.IncludesTaintInput(input) {
 		return taint_type.PARTIAL_MATCH
 	}
+	o.inputVariablesSetMx.RLock()
 	for s := range o.inputVariablesSet {
 		if strings.Contains(input, s) {
 			return taint_type.PARTIAL_MATCH
 		}
 	}
+	o.inputVariablesSetMx.RUnlock()
 
 	return taint_type.NONE
 }
