@@ -130,10 +130,9 @@ func (h *HeuristicForBooleans) EvaluateOr(left func() bool, right func() bool, f
 func (h *HeuristicForBooleans) calculateTruthness(branch bool) *Truthness {
 	base := H_REACHED
 
-	h.lastEvaluationMx.RLock()
-	lastEvaluation := h.lastEvaluation
-	h.lastEvaluationMx.RUnlock()
-	if lastEvaluation == nil {
+	h.lastEvaluationMx.Lock()
+	defer h.lastEvaluationMx.Unlock()
+	if h.lastEvaluation == nil {
 		ofTrue := float64(1)
 		ofFalse := base
 		if !branch {
@@ -143,8 +142,6 @@ func (h *HeuristicForBooleans) calculateTruthness(branch bool) *Truthness {
 		return NewTruthness(ofTrue, ofFalse)
 	}
 
-	h.lastEvaluationMx.Lock()
-	defer h.lastEvaluationMx.Unlock()
 	return h.lastEvaluation.RescaleFromMin(base)
 }
 
