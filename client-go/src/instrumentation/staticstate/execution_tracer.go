@@ -32,9 +32,6 @@ func NewExecutionTracer() *ExecutionTracer {
 	executionTracerOnce.Do(func() {
 		executionTracerInstance = &ExecutionTracer{}
 		executionTracerInstance.Reset()
-		executionTracerInstance.actionIndexMx.Lock()
-		executionTracerInstance.actionIndex = 0
-		executionTracerInstance.actionIndexMx.Unlock()
 	})
 
 	return executionTracerInstance
@@ -47,6 +44,9 @@ func (o *ExecutionTracer) Reset() {
 	o.inputVariablesSetMx.Lock()
 	o.inputVariablesSet = map[string]bool{}
 	o.inputVariablesSetMx.Unlock()
+	o.actionIndexMx.Lock()
+	o.actionIndex = 0
+	o.actionIndexMx.Unlock()
 	o.additionalInfoListMx.Lock()
 	//log.Println("[WARN] Resetting action info list")
 	o.additionalInfoList = []*AdditionalInfo{NewAdditionalInfo()}
