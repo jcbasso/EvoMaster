@@ -6,7 +6,6 @@ import (
 	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/shared"
 	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/shared/string_specialization"
 	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/shared/taint_type"
-	"log"
 	"strings"
 	"sync"
 )
@@ -81,10 +80,6 @@ func (o *ExecutionTracer) SetAction(action *Action) {
 func (o *ExecutionTracer) MarkLastExecutedStatement(lastLine string) {
 	o.actionIndexMx.RLock()
 	o.additionalInfoListMx.Lock()
-	log.Println(fmt.Sprintf("[WARN] MarkLastExecutedStatement [action: %d, additionalInfoList: %v, lastLine: %s]", o.actionIndex, o.additionalInfoList, lastLine))
-	for i, info := range o.additionalInfoList {
-		log.Println(fmt.Sprintf("[WARN] additionalInfoList[%d]: %v]", i, info.LastExecutedStatementStack))
-	}
 	o.additionalInfoList[o.actionIndex].PushLastExecutedStatement(lastLine)
 	o.additionalInfoListMx.Unlock()
 	o.actionIndexMx.RUnlock()
