@@ -62,7 +62,7 @@ func (o *ExecutionTracer) SetAction(action *Action) {
 		o.actionIndex = action.Index
 		o.additionalInfoListMx.Lock()
 		//log.Println(fmt.Sprintf("[WARN] Setting action. [action: %d]", action.Index))
-		o.additionalInfoList = append(o.additionalInfoList, &AdditionalInfo{})
+		o.additionalInfoList = append(o.additionalInfoList, NewAdditionalInfo())
 		o.additionalInfoListMx.Unlock()
 	}
 	if action.InputVariables != nil && len(action.InputVariables) > 0 {
