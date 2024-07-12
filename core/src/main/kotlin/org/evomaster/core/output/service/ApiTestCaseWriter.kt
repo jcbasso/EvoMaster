@@ -35,7 +35,20 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
         ind: EvaluatedIndividual<*>,
         insertionVars: MutableList<Pair<String, String>>
     ) {
-
+        if (format.isGo()) { // Declaring variables, so they can be later used just as assignments
+            lines.add("var method string")
+            lines.add("var reqUrl string")
+            lines.add("var body string")
+            lines.add("var req *http.Request")
+            lines.add("var err error")
+            lines.add("var p fastjson.Parser")
+            lines.add("_ = method")
+            lines.add("_ = reqUrl")
+            lines.add("_ = body")
+            lines.add("_ = req")
+            lines.add("_ = err")
+            lines.add("_ = p")
+        }
         //FIXME this is getting auth, not field declaration
         CookieWriter.handleGettingCookies(format, ind, lines, baseUrlOfSut, this)
         TokenWriter.handleGettingTokens(format, ind, lines, baseUrlOfSut, this)
@@ -199,6 +212,7 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
                 }$fieldPath"
 
                 format.isCsharp() -> if (fieldPath.isEmpty()) "" else "${if (fieldPath.startsWith("[")) "" else "."}$fieldPath"
+                format.isGo() -> if (fieldPath.isEmpty()) "" else if (fieldPath.startsWith("\"")) fieldPath else "\"$fieldPath\""
                 else -> throw IllegalStateException("Format not supported yet: $format")
             }
 
@@ -208,6 +222,7 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
                 format.isKotlin() -> ".body(\"${k}isEmpty()\", `is`(true))" //'is' is a keyword in Kotlin
                 format.isJavaScript() -> "expect(Object.keys($responseVariableName.body${k}).length).toBe(0);"
                 format.isCsharp() -> "Assert.True($responseVariableName${k}.ToString() == \"{}\");"
+                format.isGo() -> "suite.Equal(0, v_$responseVariableName.GetObject(${k}).Len())"
                 else -> throw IllegalStateException("Format not supported yet: $format")
             }
 
@@ -483,7 +498,13 @@ abstract class ApiTestCaseWriter : TestCaseWriter() {
                 content.startsWith("\\\"") -> content.substring(2, content.length - 2)
                 else -> content
             }
-            lines.add("suite.Contains(string(v_$responseVariableName.GetStringBytes()), \"$k\")")
+
+            if (mode == GeneUtils.EscapeMode.TEXT) { // Not used when Json. So no need to use Json variable
+                lines.add("suite.Equal(string($responseVariableName), \"$k\")")
+            } else {
+                lines.add("suite.Contains(string(v_$responseVariableName.GetStringBytes()), \"$k\")")
+            }
+
             return
         }
 

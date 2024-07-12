@@ -142,4 +142,6 @@ abstract class FitnessFunction<T>  where T : Individual {
         executionInfoReporter.sqlExecutionInfo(ei.individual.seeAllActions(), ei.fitness.databaseExecutions)
         executionInfoReporter.actionExecutionInfo(ei.individual, ei.executionTimeMs, time.evaluatedIndividuals)
     }
+
+    open fun startANewSearch() {}
 }

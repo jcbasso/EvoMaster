@@ -454,6 +454,7 @@ class TestSuiteWriter {
             lines.add("package ${config.outputFolder.substring(config.outputFolder.lastIndexOf("/")+1)}")
             lines.addEmpty(1)
             lines.add("import (")
+            addImport("bytes", lines)
             addImport("github.com/stretchr/testify/suite", lines)
             addImport("github.com/valyala/fastjson", lines)
             addImport("io", lines)
@@ -466,6 +467,7 @@ class TestSuiteWriter {
             lines.add("var _ *fastjson.Object = nil")
             lines.add("var _ *io.Reader = nil")
             lines.add("var _ *strings.Reader = nil")
+            lines.add("var _ *bytes.Buffer = nil")
         }
 
         if (format.isCsharp()) {

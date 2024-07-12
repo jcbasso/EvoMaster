@@ -192,7 +192,7 @@ class RestTestCaseWriter : HttpWsTestCaseWriter {
                 //currently, RestAssured does not have a trace() method
                 lines.add(".request(io.restassured.http.Method.TRACE, ")
             } else if (format.isGo()) {
-                lines.add("method := http.Method${capitalizeFirstChar(verb)}")
+                lines.add("method = http.Method${capitalizeFirstChar(verb)}")
             } else {
                 lines.add(".$verb(")
             }
@@ -215,7 +215,7 @@ class RestTestCaseWriter : HttpWsTestCaseWriter {
             if (format.isKotlin()) {
                 lines.append("\"\${$baseUrlOfSut}")
             } else if (format.isGo()) {
-                lines.add("reqUrl := \"http://\" + suite.BaseUrlOfSut + \"")
+                lines.add("reqUrl = \"http://\" + suite.BaseUrlOfSut + \"")
             } else {
                 lines.append("$baseUrlOfSut + \"")
             }

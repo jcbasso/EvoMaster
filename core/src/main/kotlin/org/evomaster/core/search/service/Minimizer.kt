@@ -209,13 +209,14 @@ class Minimizer<T: Individual> {
 
         LoggingUtil.getInfoLogger().info("Recomputing full coverage for ${current.size} tests")
 
-        val beforeCovered = archive.coveredTargets()
+        val beforeCovered = archive.coveredTargets() // JAVA: 571 || GO: 823
 
         /*
             Previously evaluated individual only had partial info, due to performance issues.
             Need to make sure to fetch all coverage info.
          */
-        val population = current.mapNotNull {
+//        fitness.startANewSearch()
+        val population = current.mapNotNull { // JAVA: 48 | GO: 48
             val ei = fitness.computeWholeAchievedCoverageForPostProcessing(it)
             if(ei == null){
                 log.warn("Failed to re-evaluate individual during minimization")
@@ -227,7 +228,7 @@ class Minimizer<T: Individual> {
 
         population.forEach{archive.addIfNeeded(it)}
 
-        val afterCovered = archive.coveredTargets()
+        val afterCovered = archive.coveredTargets() // JAVA: 577 | GO: 28
         val diff = beforeCovered.size-afterCovered.size
 
         if(diff > config.minimizeThresholdForLoss *  beforeCovered.size){

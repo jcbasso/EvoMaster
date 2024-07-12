@@ -11,6 +11,7 @@ import org.evomaster.core.remote.NoRemoteConnectionException
 import org.evomaster.core.remote.SutProblemException
 import org.evomaster.core.remote.TcpUtils
 import org.evomaster.core.search.service.SearchTimeController
+import org.joda.time.LocalDateTime
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import javax.annotation.PostConstruct
@@ -269,6 +270,7 @@ class RemoteControllerImplementation() : RemoteController{
     override fun stopSUT() = changeState(false, false)
 
     override fun resetSUT() : Boolean{
+//        println("${LocalDateTime.now()} /resetSUT")
         stc?.averageResetSUTTimeMs?.doStartTimer()
         val res = startSUT()
         stc?.averageResetSUTTimeMs?.addElapsedTime()
@@ -292,7 +294,7 @@ class RemoteControllerImplementation() : RemoteController{
     }
 
     override fun startANewSearch(): Boolean {
-
+//        println("${LocalDateTime.now()} /newSearch")
         val response = makeHttpCall {
             getWebTarget()
                     .path(ControllerConstants.NEW_SEARCH)
@@ -304,7 +306,7 @@ class RemoteControllerImplementation() : RemoteController{
     }
 
     override fun getTestResults(ids: Set<Int>, ignoreKillSwitch: Boolean, allCovered: Boolean): TestResultsDto? {
-
+//        println("${LocalDateTime.now()} /testResults [ids:${ids}, ignoreKillSwitch:$ignoreKillSwitch, allCovered:$allCovered]")
         if(allCovered && ids.isNotEmpty()){
             throw IllegalArgumentException("Cannot specify allCovered and specific ids at same time")
         }
@@ -386,7 +388,7 @@ class RemoteControllerImplementation() : RemoteController{
     }
 
     override fun registerNewAction(actionDto: ActionDto) : Boolean{
-
+//        println("${LocalDateTime.now()} /newAction")
         val response = makeHttpCall {
             getWebTarget()
                     .path(ControllerConstants.NEW_ACTION)

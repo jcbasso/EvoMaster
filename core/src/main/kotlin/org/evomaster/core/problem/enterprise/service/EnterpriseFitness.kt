@@ -162,6 +162,10 @@ abstract class EnterpriseFitness<T> : FitnessFunction<T>() where T : Individual 
         rc.registerNewAction(getActionDto(action, index))
     }
 
+    override fun startANewSearch(){
+        rc.startANewSearch()
+    }
+
     /**
      * @return dto of an action based on specified [action] and [index]
      */

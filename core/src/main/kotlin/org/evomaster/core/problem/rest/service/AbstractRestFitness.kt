@@ -37,6 +37,7 @@ import org.evomaster.core.search.gene.optional.OptionalGene
 import org.evomaster.core.search.gene.string.StringGene
 import org.evomaster.core.search.gene.utils.GeneUtils
 import org.evomaster.core.taint.TaintAnalysis
+import org.joda.time.LocalDateTime
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.net.URL
@@ -610,7 +611,7 @@ abstract class AbstractRestFitness : HttpWsFitness<RestIndividual>() {
                 GeneUtils.applyEscapes(it, GeneUtils.EscapeMode.URI, configuration.outputFormat)
             }
 
-
+//        println("${LocalDateTime.now()} $fullUri")
         val builder = if (a.produces.isEmpty()) {
             log.debug("No 'produces' type defined for {}", path)
             client.target(fullUri).request("*/*")

@@ -332,6 +332,7 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
             format.isJavaOrKotlin() -> "body"
             format.isJavaScript() -> "send"
             format.isCsharp() -> ""
+            format.isGo() -> ""
             else -> throw IllegalArgumentException("Format not supported $format")
         }
     }
@@ -347,7 +348,8 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
                 lines.append("null")
                 return
             } else if (format.isGo()) {
-                lines.add("req, err := http.NewRequest(method, reqUrl, nil)")
+                lines.add("req, err = http.NewRequest(method, reqUrl, nil)")
+                lines.add("suite.Nil(err, \"Request creation error must be nil\")")
             }
         } else { // TODO Add Go with Body
 
@@ -371,16 +373,21 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
                 val body =
                         bodyParam.gene.getValueAsPrintableString(mode = GeneUtils.EscapeMode.TEXT, targetFormat = format)
                 if (body != "\"\"") {
-                    if (!format.isCsharp())
-                        lines.add(".$send($body)")
-                    else {
+                    if (format.isCsharp())
                         lines.append("new StringContent(\"$body\", Encoding.UTF8, \"${bodyParam.contentType()}\")")
+                    else if (format.isGo()) {
+                        lines.add("body = $body")
+                    } else {
+                        lines.add(".$send($body)")
                     }
                 } else {
-                    if (!format.isCsharp())
-                        lines.add(".$send(\"${"""\"\""""}\")")
-                    else {
+                    if (format.isCsharp())
                         lines.append("new StringContent(\"${"""\"\""""}\", Encoding.UTF8, \"${bodyParam.contentType()}\")")
+                    else if (format.isGo()) {
+                        lines.add("body = \"${"""\"\""""}\"")
+                    }
+                    else {
+                        lines.add(".$send(\"${"""\"\""""}\")")
                     }
                 }
 
@@ -393,20 +400,24 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
                         mode = GeneUtils.EscapeMode.X_WWW_FORM_URLENCODED,
                         targetFormat = format
                 )
-                if (!format.isCsharp())
-                    lines.add(".$send(\"$body\")")
-                else {
+                if (format.isCsharp())
                     lines.append("new StringContent(\"$body\", Encoding.UTF8, \"${bodyParam.contentType()}\")")
+                else if (format.isGo()) {
+                    lines.add("body = \"$body\"")
+                } else {
+                    lines.add(".$send(\"$body\")")
                 }
 
             } else {
                 //TODO XML
                 LoggingUtil.uniqueWarn(log, "Unhandled type for body payload: " + bodyParam.contentType())
             }
-        }
 
-        if (format.isGo()) {
-            lines.add("suite.Nil(err, \"Request creation error must be nil\")")
+            if (format.isGo()) {
+                lines.add("req, err = http.NewRequest(method, reqUrl, bytes.NewBufferString(body))")
+                lines.add("suite.Nil(err, \"Request creation error must be nil\")")
+                lines.add("req.Header.Add(\"Content-Type\", \"${bodyParam.contentType()}\")")
+            }
         }
     }
 
@@ -417,21 +428,15 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
         val bodyLines = formatJsonWithEscapes(json, format)
 
         if (bodyLines.size == 1) {
-            if (!format.isCsharp()) {
-                lines.add(".$send(${bodyLines.first()})")
-            } else {
+            if (format.isCsharp()) {
                 lines.add("new StringContent(${bodyLines.first()}, Encoding.UTF8, \"application/json\")")
+            } else if (format.isGo()) {
+                lines.add("body = ${bodyLines.first()}")
+            } else {
+                lines.add(".$send(${bodyLines.first()})")
             }
         } else {
-            if (!format.isCsharp()) {
-                lines.add(".$send(${bodyLines.first()} + ")
-                lines.indented {
-                    (1 until bodyLines.lastIndex).forEach { i ->
-                        lines.add("${bodyLines[i]} + ")
-                    }
-                    lines.add("${bodyLines.last()})")
-                }
-            } else {
+            if (format.isCsharp()) {
                 lines.add("new StringContent(")
                 lines.add("${bodyLines.first()} +")
                 lines.indented {
@@ -441,6 +446,22 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
                     lines.add("${bodyLines.last()}")
                 }
                 lines.add(", Encoding.UTF8, \"application/json\")")
+            } else if (format.isGo()) {
+                lines.add("body = ${bodyLines.first()} + ")
+                lines.indented {
+                    (1 until bodyLines.lastIndex).forEach { i ->
+                        lines.add("${bodyLines[i]} + ")
+                    }
+                    lines.add(bodyLines.last())
+                }
+            } else {
+                lines.add(".$send(${bodyLines.first()} + ")
+                lines.indented {
+                    (1 until bodyLines.lastIndex).forEach { i ->
+                        lines.add("${bodyLines[i]} + ")
+                    }
+                    lines.add("${bodyLines.last()})")
+                }
             }
         }
     }
@@ -544,15 +565,16 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
             lines.add("$bodyVarName, err := io.ReadAll($responseVariableName.Body)")
             lines.add("suite.NoError(err, \"Request body read error must be nil\")")
             lines.addEmpty()
-            lines.add("var p fastjson.Parser")
-            lines.add("v_$bodyVarName, err := p.ParseBytes($bodyVarName)")
-            lines.add("suite.NoError(err, \"Parser body creation error must be nil\")")
         }
 
         if (type.isCompatible(MediaType.APPLICATION_JSON_TYPE) || type.toString().toLowerCase().contains("+json")) {
 
             if (format.isCsharp()) {
                 lines.append("JsonConvert.DeserializeObject(await $responseVariableName.Content.ReadAsStringAsync());")
+            } else if (format.isGo()) {
+                lines.add("v_$bodyVarName, err := p.ParseBytes($bodyVarName)")
+                lines.add("suite.NoError(err, \"Parser body creation error must be nil\")")
+                lines.add("suite.NotNil(v_$bodyVarName, \"Parsed body must not be nil\")")
             }
 
             handleJsonStringAssertion(bodyString, lines, bodyVarName, res.getTooLargeBody())
@@ -567,6 +589,8 @@ abstract class HttpWsTestCaseWriter : ApiTestCaseWriter() {
         } else {
             if (format.isCsharp()) {
                 lines.append("await $responseVariableName.Content.ReadAsStringAsync();")
+            } else if (format.isGo()) {
+                lines.add("_ = $bodyVarName")
             }
             LoggingUtil.uniqueWarn(log, "Currently no assertions are generated for response type: $type")
         }
