@@ -17,8 +17,7 @@ type AdditionalInfoDto struct {
 	// we keep track of it.
 	// The key in this map is the value of the tainted input.
 	// The associated list is its possible specializations (which usually will be at most 1).
-	// TODO: Implement string specialization
-	//StringSpecializations map[string]StringSpecializationInfoDto
+	StringSpecializations map[string][]StringSpecializationInfoDto `json:"stringSpecializations"`
 
 	// LastExecutedStatement Keep track of the last executed statement done in the SUT.
 	// But not in the third-party libraries, just the business logic of the SUT.

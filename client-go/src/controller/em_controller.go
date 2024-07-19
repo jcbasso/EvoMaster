@@ -260,10 +260,25 @@ func (e *EMController) handleTestResults(w http.ResponseWriter, r *http.Request)
 			headers = append(queryParameters, header)
 		}
 
+		stringSpecializations := map[string][]dto.StringSpecializationInfoDto{}
+		for s, specialization := range additionalInfo.StringSpecializations {
+			stringSpecializations[s] = make([]dto.StringSpecializationInfoDto, len(specialization))
+
+			i := 0
+			for specializationInfo, _ := range specialization {
+				stringSpecializations[s][i] = dto.StringSpecializationInfoDto{
+					StringSpecialization: specializationInfo.StringSpecialization.String(),
+					Value:                specializationInfo.Value,
+					Type:                 specializationInfo.TaintType.String(),
+				}
+				i++
+			}
+		}
+
 		additionalInfoDto := dto.AdditionalInfoDto{
-			QueryParameters: queryParameters,
-			Headers:         headers,
-			//StringSpecializations: ,
+			QueryParameters:       queryParameters,
+			Headers:               headers,
+			StringSpecializations: stringSpecializations,
 			LastExecutedStatement: additionalInfo.GetLastExecutedStatement(),
 		}
 
