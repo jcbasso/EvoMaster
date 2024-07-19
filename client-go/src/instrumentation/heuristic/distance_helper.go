@@ -57,7 +57,7 @@ func GetLeftAlignmentDistance(a string, b string) float64 {
 	}
 
 	for i := 0; i < min; i++ {
-		dist += math.Abs(float64(a[i] - b[i]))
+		dist += math.Abs(float64(rune(a[i]) - rune(b[i])))
 	}
 
 	return dist
