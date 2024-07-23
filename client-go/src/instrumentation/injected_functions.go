@@ -62,18 +62,18 @@ func CmpUnordered(left any, op string, right any, fileName string, line int, bra
 	rvalue := reflect.ValueOf(right)
 
 	if heuristic.BothInt(lvalue, rvalue) {
-		return heuristicForBooleans.EvaluateUnorderedCmp(lvalue.Int(), op, rvalue.Int(), fileName, line, branchId, tracer)
+		return heuristicForBooleans.EvaluateUnorderedCmp(lvalue.Int(), op, rvalue.Int(), lvalue, rvalue, fileName, line, branchId, tracer)
 	}
 
 	if heuristic.BothUint(lvalue, rvalue) {
-		return heuristicForBooleans.EvaluateUnorderedCmp(lvalue.Uint(), op, rvalue.Uint(), fileName, line, branchId, tracer)
+		return heuristicForBooleans.EvaluateUnorderedCmp(lvalue.Uint(), op, rvalue.Uint(), lvalue, rvalue, fileName, line, branchId, tracer)
 	}
 
 	if heuristic.BothFloat(lvalue, rvalue) {
-		return heuristicForBooleans.EvaluateUnorderedCmp(lvalue.Float(), op, rvalue.Float(), fileName, line, branchId, tracer)
+		return heuristicForBooleans.EvaluateUnorderedCmp(lvalue.Float(), op, rvalue.Float(), lvalue, rvalue, fileName, line, branchId, tracer)
 	}
 
-	return heuristicForBooleans.EvaluateUnorderedCmp(left, op, right, fileName, line, branchId, tracer)
+	return heuristicForBooleans.EvaluateUnorderedCmp(left, op, right, lvalue, rvalue, fileName, line, branchId, tracer)
 }
 
 // TODO: Could combine the CMPs with this validation but not sure if it makes sense

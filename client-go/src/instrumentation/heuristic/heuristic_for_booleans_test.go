@@ -1,12 +1,15 @@
 package heuristic_test
 
 import (
+	"fmt"
 	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/heuristic"
 	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/shared"
 	"github.com/jcbasso/EvoMaster/client-go/src/instrumentation/staticstate"
 	"github.com/stretchr/testify/assert"
 	"go/token"
+	"log"
 	"math"
+	"reflect"
 	"testing"
 )
 
@@ -300,6 +303,8 @@ func TestHeuristicForBooleans_EvaluateUnorderedCmp(t *testing.T) {
 		left                   any
 		op                     token.Token
 		right                  any
+		lvalue                 reflect.Value
+		rvalue                 reflect.Value
 		expected               bool
 		expectedThenValidation func(*testing.T, float64)
 		expectedElseValidation func(*testing.T, float64)
@@ -494,13 +499,93 @@ func TestHeuristicForBooleans_EvaluateUnorderedCmp(t *testing.T) {
 				assert.Equal(t, float64(1), value)
 			},
 		},
+		{
+			name: "*log.Logger(nil) == nil",
+			left: func() *log.Logger {
+				return nil
+			}(),
+			op:       token.EQL,
+			right:    nil,
+			expected: true,
+			expectedThenValidation: func(t *testing.T, value float64) {
+				assert.Equal(t, float64(1), value)
+			},
+			expectedElseValidation: func(t *testing.T, value float64) {
+				assert.LessOrEqual(t, value, heuristic.H_REACHED)
+				assert.Greater(t, value, float64(0))
+			},
+		},
+		{
+			name:     "error != nil",
+			left:     fmt.Errorf("error"),
+			op:       token.NEQ,
+			right:    nil,
+			expected: true,
+			expectedThenValidation: func(t *testing.T, value float64) {
+				assert.Equal(t, float64(1), value)
+			},
+			expectedElseValidation: func(t *testing.T, value float64) {
+				assert.LessOrEqual(t, value, heuristic.H_REACHED)
+				assert.Greater(t, value, float64(0))
+			},
+		},
+		{
+			name:     "error == nil",
+			left:     fmt.Errorf("error"),
+			op:       token.EQL,
+			right:    nil,
+			expected: false,
+			expectedThenValidation: func(t *testing.T, value float64) {
+				assert.LessOrEqual(t, value, heuristic.H_REACHED)
+				assert.Greater(t, value, float64(0))
+			},
+			expectedElseValidation: func(t *testing.T, value float64) {
+				assert.Equal(t, float64(1), value)
+			},
+		},
+		{
+			name:     "1 == nil",
+			left:     1,
+			op:       token.EQL,
+			right:    nil,
+			expected: false,
+			expectedThenValidation: func(t *testing.T, value float64) {
+				assert.LessOrEqual(t, value, heuristic.H_REACHED)
+				assert.Greater(t, value, float64(0))
+			},
+			expectedElseValidation: func(t *testing.T, value float64) {
+				assert.Equal(t, float64(1), value)
+			},
+		},
+		{
+			name:     "string == nil",
+			left:     "123",
+			op:       token.EQL,
+			right:    nil,
+			expected: false,
+			expectedThenValidation: func(t *testing.T, value float64) {
+				assert.LessOrEqual(t, value, heuristic.H_REACHED)
+				assert.Greater(t, value, float64(0))
+			},
+			expectedElseValidation: func(t *testing.T, value float64) {
+				assert.Equal(t, float64(1), value)
+			},
+		},
 	}
 
 	for _, c := range cases {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
+			// Given
+			if c.lvalue.Kind() == 0 {
+				c.lvalue = reflect.ValueOf(c.left)
+			}
+			if c.rvalue.Kind() == 0 {
+				c.rvalue = reflect.ValueOf(c.right)
+			}
+
 			// When
-			res := givenHeuristic.EvaluateUnorderedCmp(c.left, c.op.String(), c.right, givenFileName, givenLine, givenBranchId, givenTracer)
+			res := givenHeuristic.EvaluateUnorderedCmp(c.left, c.op.String(), c.right, c.lvalue, c.rvalue, givenFileName, givenLine, givenBranchId, givenTracer)
 
 			// Then
 			assert.Equal(t, c.expected, res)

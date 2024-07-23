@@ -24,7 +24,7 @@ func GetEqualityTruthness(left any, right any, tracer Tracer) *Truthness {
 	rvalue := reflect.ValueOf(right)
 
 	if !knownPair(lvalue, rvalue) {
-		eq := left == right
+		eq := equalityWithNilHandling(left, right, lvalue, rvalue)
 
 		ofTrue := float64(1)
 		ofFalse := H_REACHED
@@ -43,6 +43,28 @@ func GetEqualityTruthness(left any, right any, tracer Tracer) *Truthness {
 		ofFalse = 1
 	}
 	return NewTruthness(1-normalizedDistance, ofFalse)
+}
+
+// Should handle nil separately since interface{}(nil) != struct{}(nil), though nil should be typed in comparison
+func equalityWithNilHandling(left, right any, lvalue, rvalue reflect.Value) bool {
+	if isNil(left, lvalue) && isNil(right, rvalue) {
+		return true
+	} else if isNil(left, lvalue) || isNil(right, rvalue) {
+		return false
+	} else {
+		return left == right
+	}
+}
+
+// Should handle nil separately since interface{}(nil) != struct{}(nil), though nil should be typed in comparison
+func isNil(a any, v reflect.Value) bool {
+	k := v.Kind()
+	switch k {
+	case reflect.Chan, reflect.Func, reflect.Map, reflect.Pointer, reflect.UnsafePointer, reflect.Interface, reflect.Slice:
+		return v.IsNil()
+	default:
+		return a == nil
+	}
 }
 
 func GetLessThanTruthness[T constraints.Ordered](left T, right T) *Truthness {

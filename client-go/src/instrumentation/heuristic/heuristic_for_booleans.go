@@ -5,6 +5,7 @@ import (
 	"go/token"
 	"golang.org/x/exp/constraints"
 	"math"
+	"reflect"
 	"sync"
 )
 
@@ -145,15 +146,15 @@ func (h *HeuristicForBooleans) calculateTruthness(branch bool) *Truthness {
 	return h.lastEvaluation.RescaleFromMin(base)
 }
 
-func (h *HeuristicForBooleans) EvaluateUnorderedCmp(left any, op string, right any, fileName string, line int, branchId int, tracer Tracer) bool {
+func (h *HeuristicForBooleans) EvaluateUnorderedCmp(left any, op string, right any, lvalue reflect.Value, rvalue reflect.Value, fileName string, line int, branchId int, tracer Tracer) bool {
 	/*
 	   Make sure we get exactly the same result
 	*/
 	var res bool
 	if op == token.EQL.String() {
-		res = left == right
+		res = equalityWithNilHandling(left, right, lvalue, rvalue)
 	} else if op == token.NEQ.String() {
-		res = left != right
+		res = !equalityWithNilHandling(left, right, lvalue, rvalue)
 	} else {
 		panic(fmt.Sprintf("Invalid op: %s", op))
 	}
