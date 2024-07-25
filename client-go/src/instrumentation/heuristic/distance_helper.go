@@ -153,5 +153,31 @@ func GetDistanceToLessThan(lvalue reflect.Value, rvalue reflect.Value) float64 {
 		return GetDistanceToLessThanString(lvalue.String(), rvalue.String())
 	}
 
+	// Both should be int
+	if BothIntables(lvalue, rvalue) {
+		if lvalue.CanInt() {
+			return GetDistanceToLessThanInt64(lvalue.Int(), int64(rvalue.Uint()))
+		} else {
+			return GetDistanceToLessThanInt64(int64(lvalue.Uint()), rvalue.Int())
+		}
+	}
+
+	// Both should be floats
+	if BothFloatables(lvalue, rvalue) {
+		if lvalue.CanFloat() {
+			if rvalue.CanInt() {
+				return GetDistanceToLessThanFloat64(lvalue.Float(), float64(rvalue.Int()))
+			} else {
+				return GetDistanceToLessThanFloat64(lvalue.Float(), float64(rvalue.Uint()))
+			}
+		} else { // rvalue.CanFloat()
+			if lvalue.CanInt() {
+				return GetDistanceToLessThanFloat64(float64(lvalue.Int()), rvalue.Float())
+			} else {
+				return GetDistanceToLessThanFloat64(float64(lvalue.Uint()), rvalue.Float())
+			}
+		}
+	}
+
 	return math.MaxFloat64
 }

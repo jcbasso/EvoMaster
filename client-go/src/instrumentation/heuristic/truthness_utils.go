@@ -94,7 +94,7 @@ func GetLessThanTruthness[T constraints.Ordered](left T, right T) *Truthness {
 }
 
 func knownPair(lvalue reflect.Value, rvalue reflect.Value) bool {
-	return BothInt(lvalue, rvalue) || BothUint(lvalue, rvalue) || BothFloat(lvalue, rvalue) || BothString(lvalue, rvalue)
+	return BothInt(lvalue, rvalue) || BothUint(lvalue, rvalue) || BothFloat(lvalue, rvalue) || BothString(lvalue, rvalue) || BothIntables(lvalue, rvalue) || BothFloatables(lvalue, rvalue)
 }
 
 func BothInt(lvalue reflect.Value, rvalue reflect.Value) bool {
@@ -111,4 +111,12 @@ func BothFloat(lvalue reflect.Value, rvalue reflect.Value) bool {
 
 func BothString(lvalue reflect.Value, rvalue reflect.Value) bool {
 	return lvalue.Kind() == reflect.String && rvalue.Kind() == reflect.String
+}
+
+func BothIntables(lvalue reflect.Value, rvalue reflect.Value) bool {
+	return (lvalue.CanInt() && rvalue.CanUint()) || (lvalue.CanUint() && rvalue.CanInt())
+}
+
+func BothFloatables(lvalue reflect.Value, rvalue reflect.Value) bool {
+	return (lvalue.CanFloat() && (rvalue.CanInt() || rvalue.CanUint())) || ((lvalue.CanInt() || lvalue.CanUint()) && rvalue.CanFloat())
 }

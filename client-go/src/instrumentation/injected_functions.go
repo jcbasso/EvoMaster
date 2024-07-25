@@ -73,6 +73,36 @@ func CmpUnordered(left any, op string, right any, fileName string, line int, bra
 		return heuristicForBooleans.EvaluateUnorderedCmp(lvalue.Float(), op, rvalue.Float(), lvalue, rvalue, fileName, line, branchId, tracer)
 	}
 
+	if heuristic.BothString(lvalue, rvalue) {
+		return heuristicForBooleans.EvaluateUnorderedCmp(lvalue.String(), op, rvalue.String(), lvalue, rvalue, fileName, line, branchId, tracer)
+	}
+
+	// Both should be int
+	if heuristic.BothIntables(lvalue, rvalue) {
+		if lvalue.CanInt() {
+			return heuristicForBooleans.EvaluateUnorderedCmp(lvalue.Int(), op, int64(rvalue.Uint()), lvalue, rvalue, fileName, line, branchId, tracer)
+		} else {
+			return heuristicForBooleans.EvaluateUnorderedCmp(int64(lvalue.Uint()), op, rvalue.Int(), lvalue, rvalue, fileName, line, branchId, tracer)
+		}
+	}
+
+	// Both should be floats
+	if heuristic.BothFloatables(lvalue, rvalue) {
+		if lvalue.CanFloat() {
+			if rvalue.CanInt() {
+				return heuristicForBooleans.EvaluateUnorderedCmp(lvalue.Float(), op, float64(rvalue.Int()), lvalue, rvalue, fileName, line, branchId, tracer)
+			} else {
+				return heuristicForBooleans.EvaluateUnorderedCmp(lvalue.Float(), op, float64(rvalue.Uint()), lvalue, rvalue, fileName, line, branchId, tracer)
+			}
+		} else { // rvalue.CanFloat()
+			if lvalue.CanInt() {
+				return heuristicForBooleans.EvaluateUnorderedCmp(float64(lvalue.Int()), op, rvalue.Float(), lvalue, rvalue, fileName, line, branchId, tracer)
+			} else {
+				return heuristicForBooleans.EvaluateUnorderedCmp(float64(lvalue.Uint()), op, rvalue.Float(), lvalue, rvalue, fileName, line, branchId, tracer)
+			}
+		}
+	}
+
 	return heuristicForBooleans.EvaluateUnorderedCmp(left, op, right, lvalue, rvalue, fileName, line, branchId, tracer)
 }
 
@@ -96,6 +126,32 @@ func CmpOrdered(left any, op string, right any, fileName string, line int, branc
 
 	if heuristic.BothString(lvalue, rvalue) {
 		return heuristic.EvaluateOrderedCmp[string](heuristicForBooleans, lvalue.String(), op, rvalue.String(), fileName, line, branchId, tracer)
+	}
+
+	// Both should be int
+	if heuristic.BothIntables(lvalue, rvalue) {
+		if lvalue.CanInt() {
+			return heuristic.EvaluateOrderedCmp[int64](heuristicForBooleans, lvalue.Int(), op, int64(rvalue.Uint()), fileName, line, branchId, tracer)
+		} else {
+			return heuristic.EvaluateOrderedCmp[int64](heuristicForBooleans, int64(lvalue.Uint()), op, rvalue.Int(), fileName, line, branchId, tracer)
+		}
+	}
+
+	// Both should be floats
+	if heuristic.BothFloatables(lvalue, rvalue) {
+		if lvalue.CanFloat() {
+			if rvalue.CanInt() {
+				return heuristic.EvaluateOrderedCmp[float64](heuristicForBooleans, lvalue.Float(), op, float64(rvalue.Int()), fileName, line, branchId, tracer)
+			} else {
+				return heuristic.EvaluateOrderedCmp[float64](heuristicForBooleans, lvalue.Float(), op, float64(rvalue.Uint()), fileName, line, branchId, tracer)
+			}
+		} else { // rvalue.CanFloat()
+			if lvalue.CanInt() {
+				return heuristic.EvaluateOrderedCmp[float64](heuristicForBooleans, float64(lvalue.Int()), op, rvalue.Float(), fileName, line, branchId, tracer)
+			} else {
+				return heuristic.EvaluateOrderedCmp[float64](heuristicForBooleans, float64(lvalue.Uint()), op, rvalue.Float(), fileName, line, branchId, tracer)
+			}
+		}
 	}
 
 	panic(fmt.Sprintf("Invalid types not ordered [left:%s, right:%s]", left, right))
