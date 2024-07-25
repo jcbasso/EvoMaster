@@ -42,10 +42,9 @@ func (s *StatementHandler) Handle(stmt dst.Stmt, pos token.Position, cursor *dst
 	*s.objectives = append(*s.objectives, shared.StatementObjectiveName(fileName, pos.Line, int(s.statementCounter)))
 
 	switch stmt.(type) {
-	// TODO: Should add switch?
-	case *dst.CaseClause: // ignore each case clause and switch big clause.
+	case *dst.CaseClause, *dst.CommClause: // ignore each case clause and switch big clause.
 		return true
-	case *dst.SwitchStmt, *dst.TypeSwitchStmt:
+	case *dst.SwitchStmt, *dst.TypeSwitchStmt, *dst.SelectStmt:
 		cursor.InsertBefore(s.completionExpr(pos.Line, fileName, s.statementCounter))
 	case *dst.BranchStmt: // continue, break, goto, fallthrough. TODO: Should call it on fallthrough and goto?
 		cursor.InsertBefore(s.completionExpr(pos.Line, fileName, s.statementCounter))
